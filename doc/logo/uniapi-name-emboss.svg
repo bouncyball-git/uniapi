@@ -24,7 +24,7 @@
 <feOffset in="SourceAlpha" dx="1" dy="1.2"/><feGaussianBlur stdDeviation="1.2"/>
 <feComposite in2="SourceAlpha" operator="out" result="cast"/>
 <feFlood flood-color="#000" flood-opacity="0.16"/><feComposite in2="cast" operator="in" result="shadow"/>
-<feMorphology in="SourceAlpha" operator="dilate" radius="1"/>
+<feMorphology in="SourceAlpha" operator="dilate" radius="0.4286"/>
 <feComposite in2="SourceAlpha" operator="out" result="ring"/>
 <feFlood flood-color="#808080" flood-opacity="0.5"/><feComposite in2="ring" operator="in" result="outline"/>
 <feMerge><feMergeNode in="shadow"/><feMergeNode in="outline"/></feMerge>

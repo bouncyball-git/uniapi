@@ -5,7 +5,6 @@
   </picture>
 </p>
 
-# uniapi
 API layer for C\C++ and JS interaction
 
 A C++ library for desktop apps whose UI is a web page and whose work is done in C++:

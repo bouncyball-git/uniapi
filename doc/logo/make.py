@@ -229,7 +229,8 @@ def colours():
 # The logo with its name, as the uniapi_logo example shows them (examples/uniapi_logo/web): the
 # logo LOCKUP_LOGO across, then LOCKUP_GAP, then "uniapi" from its outlines (name.json) at
 # LOCKUP_NAME to the em, "uni" in the logo's left colour and "api" in its right, outlined as the
-# logo is (its colours mixed, half transparent, a crisp line; never blurred); the embossed
+# logo is (its colours mixed, half transparent, a crisp line as wide as the logo's; never
+# blurred); the embossed
 # version's name in its tints with the same outline and its soft shadow. The name's letters are
 # centred on the logo and lowered LOCKUP_DROP, their body level with the logo's middle. In
 # those units (the page's pixels); the SVG is drawn LOCKUP_SCALE times that.
@@ -244,7 +245,7 @@ EMBOSS_NAME_FILTER = '''<defs><filter id="name-around" x="-10%" y="-40%" width="
 <feOffset in="SourceAlpha" dx="1" dy="1.2"/><feGaussianBlur stdDeviation="1.2"/>
 <feComposite in2="SourceAlpha" operator="out" result="cast"/>
 <feFlood flood-color="#000" flood-opacity="{shadow}"/><feComposite in2="cast" operator="in" result="shadow"/>
-<feMorphology in="SourceAlpha" operator="dilate" radius="1"/>
+<feMorphology in="SourceAlpha" operator="dilate" radius="{edge}"/>
 <feComposite in2="SourceAlpha" operator="out" result="ring"/>
 <feFlood flood-color="{outline}" flood-opacity="{opacity}"/><feComposite in2="ring" operator="in" result="outline"/>
 <feMerge><feMergeNode in="shadow"/><feMergeNode in="outline"/></feMerge>
@@ -261,19 +262,22 @@ def lockup(variant, name):
     height = LOCKUP_LOGO
     # The logo as an SVG of its own inside this one (its ids are its own: tile, outside).
     logo = svg(variant, size=LOCKUP_LOGO, shown=LOCKUP_LOGO * LOCKUP_SCALE)
+    # The name's outline as wide as the logo's: its width in tile units, in this SVG's units.
+    edge = edge_for(LOCKUP_LOGO * LOCKUP_SCALE) * LOCKUP_LOGO / (100 + 2 * PAD)
     logo = logo.replace(' xmlns="http://www.w3.org/2000/svg"', '').replace('<title>uniapi</title>\n', '')
     c = colours()[variant.lstrip('-') or 'light']
     uni, api = name['uni'], name['api']
     if variant == '-emboss':
         e = c['emboss']
-        word = (EMBOSS_NAME_FILTER.format(shadow=e['shadow'], outline=c['outline'], opacity=c['outlineOpacity'])
+        word = (EMBOSS_NAME_FILTER.format(shadow=e['shadow'], outline=c['outline'], opacity=c['outlineOpacity'], edge=f'{edge:.4g}')
                 + f'\n<g filter="url(#name-around)"><g transform="{place}" fill="#000"><path d="{uni}"/><path d="{api}"/></g></g>'
                 + f'\n<g transform="{place}"><path d="{uni}" fill="#fff" fill-opacity="{e["light"]}"/>'
                 + f'<path d="{api}" fill="#000" fill-opacity="{e["dark"]}"/></g>')
     else:
-        # A stroke twice the outline's width under the letters (paint-order): one width shows round them.
+        # A stroke twice the outline's width under the letters (paint-order): one width shows round
+        # them, as wide as the logo's outline.
         word = (f'<g transform="{place}" stroke="{c["outline"]}" stroke-opacity="{c["outlineOpacity"]}" '
-                f'stroke-width="{2 / s:g}" stroke-linejoin="round" paint-order="stroke fill">\n'
+                f'stroke-width="{2 * edge / s:.4g}" stroke-linejoin="round" paint-order="stroke fill">\n'
                 f'<path d="{uni}" fill="{c["uni"]}"/><path d="{api}" fill="{c["api"]}"/></g>')
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" '
             f'width="{width * LOCKUP_SCALE}" height="{height * LOCKUP_SCALE}" role="img" aria-label="uniapi">\n'
