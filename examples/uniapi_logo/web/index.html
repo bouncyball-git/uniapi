@@ -119,13 +119,16 @@ function rgba(hex, alpha) {
 
 // The name beside the logo, drawn from its outlines (doc/logo/name.json: "uniapi" lettered in
 // Orbitron, no font needed) at NAME_SIZE px to the em: "uni" in the logo's left colour, "api" in
-// its right colour, outlined as the logo is (its colours mixed, half transparent, a crisp 1 px
-// line; never blurred), so it reads on every background here. The embossed version's name: its
+// its right colour, outlined as the logo is (its colours mixed, half transparent, a crisp line as
+// wide as the logo's, NAME_EDGE; never blurred), so it reads on every background here. The embossed version's name: its
 // tints, "uni" lighter than the background as the C is and "api" darker as the J is, the same
 // outline and a soft shadow (the logo's); its letters are translucent, so the outline and the
 // shadow lie outside them only (an SVG filter), never seen through them.
 const NAME_SIZE = 26;
 const NAME_PAD = 4;  // room round the letters for the outline and the shadow
+// The logo's outline beside it: 1.2 of its tile's 100 units (doc/logo/make.py, edge_for(), for an
+// SVG drawn large), the SVG's 112 units drawn 40 px across (.wordmark img).
+const NAME_EDGE = 1.2 * 40 / 112;
 function wordmark(colours, name) {
     const s = NAME_SIZE / name.em;
     const w = name.width * s + 2 * NAME_PAD, h = (name.bottom - name.top) * s + 2 * NAME_PAD;
@@ -138,7 +141,7 @@ function wordmark(colours, name) {
  <feOffset in="SourceAlpha" dx="1" dy="1.2"/><feGaussianBlur stdDeviation="1.2"/>
  <feComposite in2="SourceAlpha" operator="out" result="cast"/>
  <feFlood flood-color="#000" flood-opacity="${e.shadow}"/><feComposite in2="cast" operator="in" result="shadow"/>
- <feMorphology in="SourceAlpha" operator="dilate" radius="1"/>
+ <feMorphology in="SourceAlpha" operator="dilate" radius="${NAME_EDGE}"/>
  <feComposite in2="SourceAlpha" operator="out" result="ring"/>
  <feFlood flood-color="${colours.outline}" flood-opacity="${colours.outlineOpacity}"/><feComposite in2="ring" operator="in" result="outline"/>
  <feMerge><feMergeNode in="shadow"/><feMergeNode in="outline"/></feMerge>
@@ -146,8 +149,8 @@ function wordmark(colours, name) {
 <g filter="url(#name-around)"><g transform="${place}" fill="#000"><path d="${name.uni}"/><path d="${name.api}"/></g></g>
 <g transform="${place}"><path d="${name.uni}" fill="#fff" fill-opacity="${e.light}"/><path d="${name.api}" fill="#000" fill-opacity="${e.dark}"/></g>`;
     } else {
-        // A 2 px stroke under the letters (paint-order): 1 px of it shows round them.
-        body = `<g transform="${place}" stroke="${outline}" stroke-width="${2 / s}" stroke-linejoin="round" paint-order="stroke fill">
+        // A stroke twice NAME_EDGE under the letters (paint-order): NAME_EDGE of it shows round them.
+        body = `<g transform="${place}" stroke="${outline}" stroke-width="${2 * NAME_EDGE / s}" stroke-linejoin="round" paint-order="stroke fill">
 <path d="${name.uni}" fill="${colours.uni}"/><path d="${name.api}" fill="${colours.api}"/></g>`;
     }
     const holder = document.createElement('span');
