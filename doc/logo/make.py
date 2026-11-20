@@ -31,7 +31,8 @@ exactly as tall as the text's capitals and its baseline is the text's, fitted to
 pixels so they share their top and bottom pixel rows: doc/logo/name-fit.js does it, in every
 app and page.
 
-Writes doc/logo/uniapi[-dark|-gray|-emboss].svg, doc/logo/colors.json and doc/logo/name.js; with
+Writes doc/logo/uniapi[-dark|-gray|-emboss].svg, the logo with its name
+doc/logo/uniapi-name[-dark|-gray|-emboss].svg, doc/logo/colors.json and doc/logo/name.js; with
 Microsoft Edge (Windows) renders the PNGs,
 doc/logo/png/uniapi[-dark|-gray|-emboss]-<size>.png (16 ... 512), and packs
 doc/logo/uniapi.ico (16, 32, 48, 256) with Pillow.
@@ -225,6 +226,69 @@ def colours():
     return out
 
 
+# The logo with its name, as the uniapi_logo example shows them (examples/uniapi_logo/web): the
+# logo LOCKUP_LOGO across, then LOCKUP_GAP, then "uniapi" from its outlines (name.json) at
+# LOCKUP_NAME to the em, "uni" in the logo's left colour and "api" in its right, outlined as the
+# logo is (its colours mixed, half transparent, a crisp line; never blurred); the embossed
+# version's name in its tints with the same outline and its soft shadow. The name's letters are
+# centred on the logo and lowered LOCKUP_DROP, their body level with the logo's middle. In
+# those units (the page's pixels); the SVG is drawn LOCKUP_SCALE times that.
+LOCKUP_LOGO = 40
+LOCKUP_GAP = 10
+LOCKUP_NAME = 26
+LOCKUP_PAD = 4      # room round the letters for the outline and the shadow
+LOCKUP_DROP = 3
+LOCKUP_SCALE = 4
+
+EMBOSS_NAME_FILTER = '''<defs><filter id="name-around" x="-10%" y="-40%" width="120%" height="180%" color-interpolation-filters="sRGB">
+<feOffset in="SourceAlpha" dx="1" dy="1.2"/><feGaussianBlur stdDeviation="1.2"/>
+<feComposite in2="SourceAlpha" operator="out" result="cast"/>
+<feFlood flood-color="#000" flood-opacity="{shadow}"/><feComposite in2="cast" operator="in" result="shadow"/>
+<feMorphology in="SourceAlpha" operator="dilate" radius="1"/>
+<feComposite in2="SourceAlpha" operator="out" result="ring"/>
+<feFlood flood-color="{outline}" flood-opacity="{opacity}"/><feComposite in2="ring" operator="in" result="outline"/>
+<feMerge><feMergeNode in="shadow"/><feMergeNode in="outline"/></feMerge>
+</filter></defs>'''
+
+
+def lockup(variant, name):
+    s = LOCKUP_NAME / name['em']
+    word_h = (name['bottom'] - name['top']) * s + 2 * LOCKUP_PAD
+    top = (LOCKUP_LOGO - word_h) / 2 + LOCKUP_DROP + LOCKUP_PAD   # the letters' box, its top
+    x = LOCKUP_LOGO + LOCKUP_GAP
+    place = f'translate({x:g} {top - name["top"] * s:.3f}) scale({s:g})'
+    width = round(x + name['width'] * s + LOCKUP_PAD)
+    height = LOCKUP_LOGO
+    # The logo as an SVG of its own inside this one (its ids are its own: tile, outside).
+    logo = svg(variant, size=LOCKUP_LOGO, shown=LOCKUP_LOGO * LOCKUP_SCALE)
+    logo = logo.replace(' xmlns="http://www.w3.org/2000/svg"', '').replace('<title>uniapi</title>\n', '')
+    c = colours()[variant.lstrip('-') or 'light']
+    uni, api = name['uni'], name['api']
+    if variant == '-emboss':
+        e = c['emboss']
+        word = (EMBOSS_NAME_FILTER.format(shadow=e['shadow'], outline=c['outline'], opacity=c['outlineOpacity'])
+                + f'\n<g filter="url(#name-around)"><g transform="{place}" fill="#000"><path d="{uni}"/><path d="{api}"/></g></g>'
+                + f'\n<g transform="{place}"><path d="{uni}" fill="#fff" fill-opacity="{e["light"]}"/>'
+                + f'<path d="{api}" fill="#000" fill-opacity="{e["dark"]}"/></g>')
+    else:
+        # A stroke twice the outline's width under the letters (paint-order): one width shows round them.
+        word = (f'<g transform="{place}" stroke="{c["outline"]}" stroke-opacity="{c["outlineOpacity"]}" '
+                f'stroke-width="{2 / s:g}" stroke-linejoin="round" paint-order="stroke fill">\n'
+                f'<path d="{uni}" fill="{c["uni"]}"/><path d="{api}" fill="{c["api"]}"/></g>')
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" '
+            f'width="{width * LOCKUP_SCALE}" height="{height * LOCKUP_SCALE}" role="img" aria-label="uniapi">\n'
+            f'<title>uniapi</title>\n{logo.strip()}\n{word}\n</svg>\n')
+
+
+def write_lockups():
+    import json
+    with open(os.path.join(HERE, 'name.json'), encoding='utf-8') as f:
+        name = json.load(f)
+    for variant in ALL:
+        with open(os.path.join(HERE, f'uniapi-name{variant}.svg'), 'w', encoding='utf-8', newline='\n') as f:
+            f.write(lockup(variant, name))
+
+
 def main():
     for variant in ALL:
         with open(os.path.join(HERE, f'uniapi{variant}.svg'), 'w', encoding='utf-8', newline='\n') as f:
@@ -246,6 +310,8 @@ def main():
               f'window.UNIAPI_NAME = {json.dumps(name, indent=2)};\n')
     with open(os.path.join(HERE, 'name.js'), 'w', encoding='utf-8', newline='\n') as f:
         f.write(script)
+    # The logo with its name.
+    write_lockups()
     exe = edge_exe()
     if not exe:
         print('SVGs written; no Microsoft Edge for the PNGs and the icon')

@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="doc/logo/uniapi-dark.svg">
-    <img src="doc/logo/uniapi.svg" width="128" height="128" alt="uniapi logo: a tile half white, half blue, whose halves are [ and ] round a box in the crossed colours: C and J">
+    <source media="(prefers-color-scheme: dark)" srcset="doc/logo/uniapi-name.svg">
+    <img src="doc/logo/uniapi-name-dark.svg" width="441" height="120" alt="uniapi: the logo, a tile half ink, half blue, whose halves are [ and ] round a box in the crossed colours (C and J), and the name, uni in ink and api in blue">
   </picture>
 </p>
 
@@ -1026,7 +1026,7 @@ examples/uniapi_stream/  demo app and its pages
 examples/uniapi_logo/    the logo's versions and sizes on changing backgrounds
 examples/uniapi_notify/  a notification from C++ (the app's name and icon as the desktop shows them)
 examples/uniapi_tray/    an icon in the tray with a menu; closing the window hides it
-doc/logo/                the logo: make.py (its source), SVGs, PNGs, uniapi.ico, colors.json, name.json/.js, name-fit.js
+doc/logo/                the logo: make.py (its source), SVGs (uniapi-name*.svg: with its name), PNGs, uniapi.ico, colors.json, name.json/.js, name-fit.js
 tests/selftest/          API test (uniapi_test), C++20 (run with ctest)
 tests/c_api/             C API test, in C (run with ctest)
 tests/windows/           windows test: further windows (run with ctest)
