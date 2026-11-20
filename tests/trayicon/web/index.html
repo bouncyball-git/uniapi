@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>uniapi tray test</title>
+<style>
+    body { margin: 0; padding: 16px; font: 13px/1.5 system-ui, sans-serif; background: #16191e; color: #d4dae3; }
+    h1 { font-size: 16px; margin: 0 0 8px; }
+    #log { font-family: ui-monospace, Consolas, monospace; font-size: 12px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>uniapi tray test</h1>
+<p>C++ puts icons in the tray and checks them; the results appear here and on the console. The
+test's icon stays in the tray: try its menu by hand.</p>
+<div id="log"></div>
+<script src="/uniapi/uniapi.js"></script>
+<script>
+const app = uniapi.connect({ page: 'main' });
+app.expose({ showResults: (lines) => { document.getElementById('log').textContent = lines.join('\n'); } });
+</script>
+</body>
+</html>

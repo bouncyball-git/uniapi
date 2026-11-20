@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-6 -6 112 112" width="512" height="512">
+<title>uniapi</title>
+<defs>
+<clipPath id="halves"><rect x="-6" y="-6" width="55.2" height="112"/><rect x="50.8" y="-6" width="55.2" height="112"/></clipPath>
+<clipPath id="left"><rect x="-6" y="-6" width="56" height="112"/></clipPath>
+<clipPath id="right"><rect x="50" y="-6" width="56" height="112"/></clipPath>
+<g id="raised" clip-path="url(#halves)"><path fill-rule="evenodd" d="M22 0 H100 V78 A22 22 0 0 1 78 100 H22 A22 22 0 0 1 0 78 V22 A22 22 0 0 1 22 0 Z M22 22 H78 V78 H22 Z"/></g>
+<rect id="sunk" x="22" y="22" width="56" height="56"/>
+<filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="1.2"/></filter>
+<mask id="raisedTL" maskUnits="userSpaceOnUse" x="-6" y="-6" width="112" height="112"><use href="#raised" fill="#fff"/><use href="#raised" fill="#000" transform="translate(1.6 1.6)"/></mask><mask id="raisedBR" maskUnits="userSpaceOnUse" x="-6" y="-6" width="112" height="112"><use href="#raised" fill="#fff"/><use href="#raised" fill="#000" transform="translate(-1.6 -1.6)"/></mask><mask id="sunkTL" maskUnits="userSpaceOnUse" x="-6" y="-6" width="112" height="112"><use href="#sunk" fill="#fff"/><use href="#sunk" fill="#000" transform="translate(1.6 1.6)"/></mask><mask id="sunkBR" maskUnits="userSpaceOnUse" x="-6" y="-6" width="112" height="112"><use href="#sunk" fill="#fff"/><use href="#sunk" fill="#000" transform="translate(-1.6 -1.6)"/></mask><mask id="around" maskUnits="userSpaceOnUse" x="-6" y="-6" width="112" height="112"><rect x="-6" y="-6" width="112" height="112" fill="#fff"/><use href="#raised" fill="#000"/></mask>
+</defs>
+<g mask="url(#around)"><use href="#raised" fill="#000" fill-opacity="0.16" transform="translate(1.2 1.2)" filter="url(#soft)"/></g>
+<use href="#raised" fill="#fff" fill-opacity="0.22" clip-path="url(#left)"/>
+<use href="#raised" fill="#000" fill-opacity="0.16" clip-path="url(#right)"/>
+<use href="#sunk" fill="#000" fill-opacity="0.16" clip-path="url(#left)"/>
+<use href="#sunk" fill="#fff" fill-opacity="0.22" clip-path="url(#right)"/>
+<use href="#raised" fill="#fff" fill-opacity="0.24" mask="url(#raisedTL)"/>
+<use href="#raised" fill="#000" fill-opacity="0.12" mask="url(#raisedBR)"/>
+<use href="#sunk" fill="#000" fill-opacity="0.12" mask="url(#sunkTL)"/>
+<use href="#sunk" fill="#fff" fill-opacity="0.24" mask="url(#sunkBR)"/>
+</svg>

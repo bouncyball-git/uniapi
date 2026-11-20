@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>uniapi C API test</title>
+<style>
+    :root { color-scheme: light dark; font: 14px/1.45 system-ui, sans-serif; --ok: #1e8e3e; --bad: #d93025; }
+    @media (prefers-color-scheme: dark) { :root { --ok: #5bb974; --bad: #f28b82; } }
+    body { margin: 0; padding: 20px 24px 32px; display: grid; gap: 12px; }
+    h1 { margin: 0; font-size: 20px; }
+    h2 { margin: 14px 0 4px; font-size: 14px; }
+    p { margin: 0; }
+    .intro { color: GrayText; max-width: 70ch; }
+    #status { font-size: 16px; font-weight: 600; }
+    #status.pass { color: var(--ok); }
+    #status.fail { color: var(--bad); }
+    .check { display: grid; grid-template-columns: 1.4em 1fr; padding: 1px 0; }
+    .check .mark { font-weight: 700; }
+    .check.ok .mark { color: var(--ok); }
+    .check.bad { color: var(--bad); }
+    .check .detail { grid-column: 2; font-family: ui-monospace, Consolas, monospace; font-size: 12px; overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<h1>uniapi C API test</h1>
+<p class="intro">A C program (tests/c_api/main.c) drives this page through the C API (uniapi.h): calls
+    in both directions, binary data, events, a stream, DOM command lists, files from disk, the
+    window's size and full screen, and a reload. The results appear here when the run is done;
+    the console shows them too.</p>
+<p id="status">Running…</p>
+<div id="results"></div>
+<!-- What C's DOM command lists edit (never shown). -->
+<div id="dom-area" hidden>
+    <p id="dom-style">style me</p>
+    <p id="dom-class" class="off">change my classes</p>
+    <p id="dom-remove">remove me</p>
+    <div id="dom-clear"><span>a</span><span>b</span></div>
+</div>
+<script src="/uniapi/uniapi.js"></script>
+<script>
+'use strict';
+const app = uniapi.connect({ page: 'c-api' });
+const patternByte = (seed, i) => (seed + i * 31) & 0xff;
+const pattern = (size, seed) => Uint8Array.from({ length: size }, (_, i) => patternByte(seed, i));
+const weighted = (bytes) => bytes.reduce((sum, b, i) => sum + b * (i % 251 + 1), 0);
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+let frame = null;  // what the stream handler saw
+
+app.stream('c-stream', (bytes, meta) => {
+    let ok = bytes.length === meta.size;
+    for (let i = 0; ok && i < bytes.length; i++) ok = bytes[i] === patternByte(meta.seed, i);
+    frame = { ok, size: bytes.length, seed: meta.seed };
+});
+app.on('ping', (data) => app.emit('pong', { got: data }));
+
+app.expose({
+    jsAdd: (a, b) => a + b,
+    jsThrows: () => { throw new Error('js boom'); },
+    jsBytes: () => ({ label: 'b', data: new Uint8Array([1, 2, 3]) }),
+    jsBytesInfo: (bytes) => ({ isBytes: bytes instanceof Uint8Array, size: bytes.length, sum: weighted(bytes) }),
+    frameSeen: () => frame,
+    // DOM lists arrive through a stream, so in fetch mode they can land after this call: wait.
+    async domText() {
+        for (let i = 0; i < 200 && !document.getElementById('from-c'); i++) {
+            await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        const p = document.getElementById('from-c');
+        return p ? p.textContent : null;
+    },
+    // The second list's edits, once they arrived (#dom-remove is gone).
+    async domEdits() {
+        for (let i = 0; i < 200 && document.getElementById('dom-remove'); i++) await sleep(10);
+        const classes = document.getElementById('dom-class').classList;
+        return {
+            color: document.getElementById('dom-style').style.color,
+            on: classes.contains('on'),
+            off: classes.contains('off'),
+            removed: !document.getElementById('dom-remove'),
+            cleared: document.getElementById('dom-clear').childNodes.length === 0,
+        };
+    },
+    // A file C wrote next to the program, served with uniapi_serve_directory.
+    async diskText() {
+        const response = await fetch('/c_api_disk.txt');
+        return response.ok ? response.text() : `HTTP ${response.status}`;
+    },
+    // The page's size once it is width × height, or after 3 s.
+    async waitForSize(width, height) {
+        for (let i = 0; i < 300 && (innerWidth !== width || innerHeight !== height); i++) await sleep(10);
+        return [innerWidth, innerHeight];
+    },
+    // Whether the page fills the screen (it may take the window manager a moment), up to 3 s.
+    async waitForFullScreen(on) {
+        const full = () => innerWidth >= screen.width && innerHeight >= screen.height;
+        for (let i = 0; i < 300 && full() !== on; i++) await sleep(10);
+        return { full: full(), width: innerWidth, height: innerHeight, screen: [screen.width, screen.height] };
+    },
+
+    // Called at the end with every check C recorded (see finish() in main.c).
+    showResults(summary, ok, checks) {
+        const status = document.getElementById('status');
+        status.textContent = summary;
+        status.className = ok ? 'pass' : 'fail';
+        const results = document.getElementById('results');
+        results.replaceChildren();
+        let step = null;
+        for (const item of checks) {
+            if (item.step !== step) {
+                step = item.step;
+                const heading = document.createElement('h2');
+                heading.textContent = step;
+                results.append(heading);
+            }
+            const row = document.createElement('div');
+            row.className = item.ok ? 'check ok' : 'check bad';
+            const mark = document.createElement('span');
+            mark.className = 'mark';
+            mark.textContent = item.ok ? '✓' : '✗';
+            const name = document.createElement('span');
+            name.textContent = item.name;
+            row.append(mark, name);
+            if (item.detail) {
+                const detail = document.createElement('span');
+                detail.className = 'detail';
+                detail.textContent = item.detail;
+                row.append(detail);
+            }
+            results.append(row);
+        }
+        window.scrollTo(0, 0);  // the summary is at the top
+    },
+
+    // The page's checks of the C functions; C records and prints them.
+    async runTests() {
+        const results = [];
+        const check = (name, ok, detail) => results.push({ name, ok: !!ok, detail: ok ? '' : String(detail) });
+        const n = app.native;
+        const value = async (promise) => { try { return await promise; } catch (err) { return `rejected: ${err.message}`; } };
+
+        let v = await value(n.add(2, 3.5));
+        check('a C handler returns a number', v === 5.5, JSON.stringify(v));
+        v = await value(n.greet('Ünï "C"'));
+        check('a C handler reads and returns UTF-8 strings', v === 'Hello, Ünï "C"', JSON.stringify(v));
+        v = await value(n.fail());
+        check('uniapi_reply_reject rejects with its message', v === 'rejected: c boom', JSON.stringify(v));
+        v = await value(n.add('x'));
+        check('a C handler can reject bad arguments', v === 'rejected: add needs two numbers', JSON.stringify(v));
+        v = await value(n.later());
+        check('a reply answered later from uniapi_post', v === 'later', JSON.stringify(v));
+        const data = pattern(5000, 3);
+        v = await value(n.bytesInfo(data));
+        check('binary arguments arrive in uniapi_bytes', v && v.count === 1 && v.size === 5000 &&
+              v.sum === weighted(data) && v.placeholder === '{"$bytes":0}', JSON.stringify(v));
+        v = await value(n.makeBytes(300, 9));
+        check('uniapi_bytes_json sends binary data to the page', v instanceof Uint8Array && v.length === 300 &&
+              v.every((b, i) => b === patternByte(9, i)), String(v));
+        v = await value(n.badJson());
+        check('invalid JSON from C rejects the call', typeof v === 'string' && v.includes('invalid JSON'), JSON.stringify(v));
+        return results;
+    },
+});
+</script>
+</body>
+</html>

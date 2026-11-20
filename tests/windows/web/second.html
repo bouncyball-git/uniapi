@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>uniapi windows test: a further window</title>
+<style>
+    body { margin: 0; padding: 16px; font: 13px/1.5 system-ui, sans-serif; background: #1c2026; color: #d4dae3; }
+</style>
+</head>
+<body>
+<p id="what">A further window.</p>
+<script src="/uniapi/uniapi.js"></script>
+<script>
+// Its page name from the query: "?early", "?modal", "?again"... (default "second").
+const name = location.search.slice(1) || 'second';
+document.getElementById('what').textContent = `A further window: ${name}.`;
+const app = uniapi.connect({ page: name });
+
+app.expose({
+    double: (x) => x * 2,
+    never: () => new Promise(() => {}),  // a call that is never answered (the window closes first)
+});
+app.on('ping', (n) => app.emit('pong', n + 1));
+// A stream into this window: its bytes' sum, to check they arrived.
+app.stream('frames', (bytes, meta) => {
+    let sum = 0;
+    for (let i = 0; i < bytes.length; i++) sum += bytes[i];
+    app.emit('frameSeen', { sum, size: bytes.length, seq: meta?.seq ?? null });
+});
+
+// The app's stream that reaches this window too.
+app.stream('both', (bytes, meta) => {
+    let sum = 0;
+    for (let i = 0; i < bytes.length; i++) sum += bytes[i];
+    app.emit('bothSeen', { sum, seq: meta?.seq ?? null });
+});
+
+// Once connected: its calls to C++ (its window's functions, the app's), binary data both ways,
+// an event only the app handles; then a report.
+app.ready.then(async () => {
+    const report = { page: name };
+    try {
+        report.who = await app.native.who();
+        report.shared = await app.native.shared();
+        report.bytesLen = await app.native.bytesLen(new Uint8Array(1000).fill(3));
+        const made = await app.native.makeBytes(500);
+        report.madeBytes = made.length;
+        report.madeFirst = made[0];
+    } catch (error) {
+        report.error = String(error && error.message || error);
+    }
+    app.emit('toApp', name);
+    app.emit('report', report);
+});
+</script>
+</body>
+</html>

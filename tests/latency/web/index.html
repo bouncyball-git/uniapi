@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>uniapi latency</title>
+<style>
+    :root { color-scheme: light dark; font: 13px/1.45 system-ui, sans-serif; --pad: #2b3340; --pad-lit: #3d5a80; --bar: #3fb6ff; }
+    @media (prefers-color-scheme: light) { :root { --pad: #e4e9f0; --pad-lit: #b8cde6; } }
+    body { margin: 0; padding: 16px 20px; display: grid; gap: 10px; }
+    h1 { margin: 0; font-size: 18px; }
+    h2 { margin: 8px 0 0; font-size: 14px; }
+    p { margin: 0; max-width: 78ch; }
+    .dim { color: GrayText; }
+    table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+    th, td { padding: 2px 10px 2px 0; text-align: right; white-space: nowrap; }
+    th:first-child, td:first-child { text-align: left; }
+    th { font-weight: 600; color: GrayText; }
+    #pad { position: relative; height: 110px; border-radius: 6px; background: var(--pad); display: grid; place-items: center;
+           user-select: none; cursor: pointer; }
+    #pad.lit { background: var(--pad-lit); }
+    #bar { position: absolute; left: 0; bottom: 0; height: 5px; border-radius: 0 3px 3px 0; background: var(--bar); width: 0; }
+    label { user-select: none; }
+</style>
+</head>
+<body>
+<h1>uniapi latency</h1>
+<p id="setup" class="dim">…</p>
+
+<h2>1. Messages</h2>
+<p class="dim">The page calls C++ 100 times per row (no input involved); medians here, the console also has min
+    and max. One way is on a clock synced to C++'s: the fastest of 50 calls, whose half round trip bounds the error.</p>
+<table id="messages"><tr><th></th><th>page → C++</th><th>C++ → page</th><th>round trip</th></tr></table>
+
+<h2>2. After a click</h2>
+<p class="dim">Click the pad: each click calls C++ and measures from the click (the input event's own time) until
+    the answer is back. Clicks alternate: one changes the screen, the next doesn't. Click about 20 times, then
+    again with the page animating.</p>
+<label><input type="checkbox" id="animate"> Animate the page (a bar moving every frame)</label>
+<div id="pad">click here<div id="bar"></div></div>
+<table id="clicks"><tr><th></th><th>clicks</th><th>median</th><th>min</th><th>max</th></tr></table>
+
+<script src="/uniapi/uniapi.js"></script>
+<script>
+'use strict';
+const app = uniapi.connect({ page: 'latency' });
+const $ = (selector) => document.querySelector(selector);
+const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+const median = (list) => [...list].sort((a, b) => a - b)[list.length >> 1];
+const ms = (v) => (v === undefined ? '–' : `${v.toFixed(2)} ms`);
+const summary = (list) => `${ms(median(list))} (min ${ms(Math.min(...list))}, max ${ms(Math.max(...list))})`;
+
+// The page busy: `pageBusy` ms of work every frame; the bar moves while `animating`.
+let pageBusy = 0;
+let animating = false;
+(function frame(time) {
+    const until = performance.now() + pageBusy;
+    while (performance.now() < until) { /* busy */ }
+    $('#bar').style.width = animating ? `${50 + 45 * Math.sin(time / 300)}%` : '0';
+    requestAnimationFrame(frame);
+})(0);
+$('#animate').addEventListener('change', (event) => { animating = event.target.checked; });
+
+// --- 1. Messages ------------------------------------------------------------------------------
+
+// C++'s clock against the page's: the fastest of 50 calls.
+async function syncClock() {
+    let best = null;
+    for (let i = 0; i < 50; i++) {
+        const before = performance.now();
+        const cpp = await app.native.arrive();
+        const after = performance.now();
+        if (!best || after - before < best.rtt) best = { rtt: after - before, offset: cpp - (before + after) / 2 };
+    }
+    return best;
+}
+
+async function measure(offset) {
+    const out = [];
+    const back = [];
+    const trip = [];
+    for (let i = 0; i < 100; i++) {
+        await sleep(7 + (i % 5) * 3);  // spread over frames
+        const before = performance.now();
+        const cpp = await app.native.arrive();
+        const after = performance.now();
+        out.push(cpp - offset - before);
+        back.push(after - (cpp - offset));
+        trip.push(after - before);
+    }
+    return [out, back, trip];
+}
+
+async function messages() {
+    const setup = await app.native.setup();
+    $('#setup').textContent = `Chromium's deferral after input: ${setup.deferTasksAfterInput ? 'kept (--keep-defer)' : 'off (the default)'}`
+        + `; shared memory: ${setup.sharedMemory ? 'yes' : 'no'}`
+        + (setup.browserArguments ? `; browser arguments: ${setup.browserArguments}` : '');
+    await sleep(500);
+    const clock = await syncClock();
+    const lines = [`uniapi latency: messages (clock sync error <= ${clock.rtt / 2 < 0.005 ? '0.01' : (clock.rtt / 2).toFixed(2)} ms)`];
+    const table = $('#messages');
+    const rows = [
+        ['idle', async () => {}],
+        ['page busy (10 ms every frame)', async () => { pageBusy = 10; }],
+        ['C++ busy (8 ms every 33 ms)', async () => { pageBusy = 0; await app.native.setBusy(8); }],
+    ];
+    for (const [name, prepare] of rows) {
+        await prepare();
+        const [out, back, trip] = await measure(clock.offset);
+        const row = table.insertRow();
+        for (const text of [name, ms(median(out)), ms(median(back)), ms(median(trip))]) row.insertCell().textContent = text;
+        lines.push(`  ${name}:\n    page -> C++ ${summary(out)}\n    C++ -> page ${summary(back)}\n    round trip  ${summary(trip)}`);
+    }
+    await app.native.setBusy(0);
+    pageBusy = 0;
+    await app.native.print(lines.join('\n'));
+    await app.native.done();
+}
+
+// --- 2. After a click -------------------------------------------------------------------------
+
+const clicks = { 'idle, no screen change': [], 'idle, screen changes': [], 'animating, no screen change': [], 'animating, screen changes': [] };
+let count = 0;
+function showClicks() {
+    const table = $('#clicks');
+    while (table.rows.length > 1) table.deleteRow(1);
+    for (const [name, list] of Object.entries(clicks)) {
+        const row = table.insertRow();
+        const cells = list.length ? [name, list.length, ms(median(list)), ms(Math.min(...list)), ms(Math.max(...list))] : [name, 0, '–', '–', '–'];
+        for (const text of cells) row.insertCell().textContent = String(text);
+    }
+}
+$('#pad').addEventListener('pointerdown', async (event) => {
+    const changes = count++ % 2 === 1;
+    if (changes) $('#pad').classList.toggle('lit');
+    await app.native.arrive();
+    const back = performance.now() - event.timeStamp;
+    clicks[`${animating ? 'animating' : 'idle'}, ${changes ? 'screen changes' : 'no screen change'}`].push(back);
+    showClicks();
+    if (count % 20 === 0) {
+        await app.native.print('uniapi latency: after a click, answer back\n' + Object.entries(clicks)
+            .filter(([, list]) => list.length).map(([name, list]) => `  ${name} (${list.length}): ${summary(list)}`).join('\n'));
+    }
+});
+showClicks();
+
+app.ready.then(messages);
+</script>
+</body>
+</html>

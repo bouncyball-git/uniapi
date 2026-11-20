@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>uniapi checker: limits and background</title>
+<style>
+    /* No background of its own: the navy is the window's backgroundColor ("#1b2636"). */
+    :root { color-scheme: dark; font: 15px/1.5 system-ui, sans-serif; color: #e6edf5; }
+    body { margin: 0; padding: 18px 22px; display: grid; gap: 10px; }
+    h1 { margin: 0; font-size: 18px; }
+    p { margin: 0; }
+</style>
+</head>
+<body>
+<h1>maxWidth, maxHeight, backgroundColor</h1>
+<p>This page sets no background: the navy behind it is the window's <code>backgroundColor</code>,
+    also what shows before the page has drawn and at the window's edges while you resize it.</p>
+<p>Make the window bigger: it stops at 640 × 480 (the page's area), and maximising gives no more
+    (Windows, macOS, Linux with GTK 3; GTK 4 can't limit a window's size).</p>
+</body>
+</html>

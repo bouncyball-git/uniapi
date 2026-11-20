@@ -1,0 +1,26 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>uniapi modal test</title>
+<style>
+    :root { color-scheme: light dark; font: 15px/1.5 system-ui, sans-serif; }
+    body { margin: 0; padding: 16px; min-height: 100vh; box-sizing: border-box; }
+</style>
+<p id="page"></p>
+<p id="say" style="font-size: 20px; font-weight: 600"></p>
+<p id="seen">no input yet</p>
+<script src="/uniapi/uniapi.js"></script>
+<script>
+// Every window shows this page under its own name and reports the clicks and keys it gets.
+const name = new URLSearchParams(location.search).get('name') || 'main';
+document.getElementById('page').textContent = name;
+const app = uniapi.connect({ page: name });
+// What the person running the test by hand should do here (--by-hand).
+app.expose({ say: (text) => { document.getElementById('say').textContent = text; } });
+let count = 0;
+for (const kind of ['pointerdown', 'keydown']) {
+    addEventListener(kind, (event) => {
+        document.getElementById('seen').textContent = `${++count}: ${kind}`;
+        app.emit('input', { page: name, kind, x: event.clientX ?? null, y: event.clientY ?? null });
+    });
+}
+</script>

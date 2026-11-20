@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>uniapi self-test</title>
+<style>
+    :root { color-scheme: light dark; font: 14px/1.45 system-ui, sans-serif; --ok: #1e8e3e; --bad: #d93025; }
+    @media (prefers-color-scheme: dark) { :root { --ok: #5bb974; --bad: #f28b82; } }
+    body { margin: 0; padding: 20px 24px 32px; display: grid; gap: 12px; }
+    h1 { margin: 0; font-size: 20px; }
+    h2 { margin: 14px 0 4px; font-size: 14px; }
+    p { margin: 0; }
+    .intro { color: GrayText; max-width: 70ch; }
+    #status { font-size: 16px; font-weight: 600; }
+    #status.pass { color: var(--ok); }
+    #status.fail { color: var(--bad); }
+    .check { display: grid; grid-template-columns: 1.4em 1fr; padding: 1px 0; }
+    .check .mark { font-weight: 700; }
+    .check.ok .mark { color: var(--ok); }
+    .check.bad { color: var(--bad); }
+    .check.note { color: GrayText; }
+    .check .detail { grid-column: 2; font-family: ui-monospace, Consolas, monospace; font-size: 12px; overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<h1>uniapi self-test</h1>
+<p class="intro">C++ drives this page through every library feature: calls in both directions and their
+    errors, events, streams (backpressure, frames from 0 bytes to 256 KB checked byte by byte,
+    replacing a stream), binary data in both directions, C++20 coroutines, DOM command lists, reloading the page, and the
+    fallback to fetching when shared memory doesn't reach the page. The results appear here when
+    the run is done; the console shows them too.</p>
+<p id="status">Running…</p>
+<div id="results"></div>
+<p id="bind-target" hidden>not bound yet</p>
+<script src="/uniapi/uniapi.js"></script>
+<script src="selftest.js"></script>
+</body>
+</html>

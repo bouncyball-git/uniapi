@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>uniapi desktop test</title>
+<style>
+    body { margin: 0; padding: 16px; font: 13px/1.5 system-ui, sans-serif; background: #16191e; color: #d4dae3; }
+    h1 { font-size: 16px; margin: 0 0 8px; }
+    a { color: #6aa8ff; }
+    #log { font-family: ui-monospace, Consolas, monospace; font-size: 12px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>uniapi desktop test</h1>
+<p>Links, files dropped on the window, the clipboard and a second launch. Try by hand: drop a
+file on this window; <a id="link" href="https://example.com/from-a-link">a link</a> and
+<a id="blank" href="https://example.com/from-a-new-window" target="_blank">one to a new window</a>
+(the test keeps them from opening).</p>
+<p><button id="copy">Copy a text to the clipboard</button> <span id="copied"></span></p>
+<div id="log"></div>
+<script src="/uniapi/uniapi.js"></script>
+<script>
+const app = uniapi.connect({ page: 'main' });
+app.expose({
+    click: (id) => { document.getElementById(id).click(); return true; },
+    goTo: (url) => { location.href = url; return true; },
+    showResults: (lines) => { document.getElementById('log').textContent = lines.join('\n'); },
+});
+// By hand: a click here is the person using the window, which is what Wayland wants before it
+// takes the clipboard from an app. Paste in another program to see the text.
+document.getElementById('copy').addEventListener('click', async () => {
+    document.getElementById('copied').textContent = 'copied: ' + await app.native.copyByHand();
+});
+</script>
+</body>
+</html>

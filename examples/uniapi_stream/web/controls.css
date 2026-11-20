@@ -1,0 +1,306 @@
+:root {
+    color-scheme: dark;
+    --bg: #111214;
+    --surface: #1b1d21;
+    --surface-raised: #23262b;
+    --border: #2f3339;
+    --text: #e6e8eb;
+    --text-muted: #9aa1ab;
+    --accent: #4c8dff;
+    --accent-hover: #6aa1ff;
+    --accent-text: #ffffff;
+    --accent-soft: rgba(76, 141, 255, 0.14);
+    --danger: #ff6b6b;
+    --danger-soft: rgba(255, 107, 107, 0.12);
+    --success: #4cc38a;
+    --success-soft: rgba(76, 195, 138, 0.12);
+    --radius: 10px;
+    --focus: 0 0 0 3px rgba(76, 141, 255, 0.45);
+}
+
+@media (prefers-color-scheme: light) {
+    :root {
+        color-scheme: light;
+        --bg: #f4f5f7;
+        --surface: #ffffff;
+        --surface-raised: #f7f8fa;
+        --border: #d9dce1;
+        --text: #1b1d21;
+        --text-muted: #5d6470;
+        --accent: #2563eb;
+        --accent-hover: #1d4ed8;
+        --accent-soft: rgba(37, 99, 235, 0.10);
+        --danger: #c62828;
+        --danger-soft: rgba(198, 40, 40, 0.08);
+        --success: #1e7d4f;
+        --success-soft: rgba(30, 125, 79, 0.08);
+        --focus: 0 0 0 3px rgba(37, 99, 235, 0.35);
+    }
+}
+
+* { box-sizing: border-box; }
+
+/* Author display rules (e.g. .field's grid) would otherwise override the hidden attribute. */
+[hidden] { display: none !important; }
+
+html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 "Segoe UI", system-ui, sans-serif;
+}
+
+h1, h2 { margin: 0; font-weight: 600; }
+h1 { font-size: 20px; }
+h2 { font-size: 16px; }
+
+.topbar {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 24px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+}
+
+.layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);  /* lets the wide table scroll inside its card */
+    gap: 20px;
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 24px;
+}
+
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    min-width: 0;
+}
+
+.card-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    margin-bottom: 12px;
+}
+
+.head-actions { display: flex; gap: 8px; }
+
+.status {
+    margin: 0 0 12px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--success);
+    background: var(--success-soft);
+    color: var(--success);
+    font-size: 13px;
+    word-break: break-all;
+}
+
+.status.error {
+    border-color: var(--danger);
+    background: var(--danger-soft);
+    color: var(--danger);
+}
+
+fieldset {
+    margin: 0 0 22px;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+}
+
+legend {
+    padding: 0;
+    margin-bottom: 10px;
+    font-weight: 600;
+    font-size: 15px;
+}
+
+.row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px 16px;
+}
+
+.field { display: grid; gap: 4px; min-width: 140px; }
+.field.narrow { min-width: 0; width: 140px; }
+.grow { flex: 1 1 220px; }
+
+.label { color: var(--text-muted); font-size: 13px; }
+
+input[type="number"], select {
+    font: inherit;
+    color: var(--text);
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 10px;
+    min-height: 36px;
+}
+
+select { min-width: 220px; }
+
+input:focus-visible, select:focus-visible, .button:focus-visible {
+    outline: none;
+    box-shadow: var(--focus);
+}
+
+input:invalid:not(:focus):not(:placeholder-shown) { border-color: var(--danger); }
+
+.choices {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+}
+
+.choice {
+    position: relative;
+    display: grid;
+    align-content: start;
+    gap: 2px;
+    padding: 12px 14px 12px 40px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: border-color 0.15s, background-color 0.15s;
+}
+
+.choice:hover { border-color: var(--accent); }
+
+.choice input {
+    position: absolute;
+    left: 14px;
+    top: 14px;
+    margin: 0;
+    accent-color: var(--accent);
+}
+
+.choice:has(input:checked) {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+
+.choice:has(input:focus-visible) { box-shadow: var(--focus); }
+
+.choice:has(input:disabled) {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.choice-title { font-weight: 600; }
+.choice-text { color: var(--text-muted); font-size: 13px; }
+
+.check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.check input {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--accent);
+}
+
+.check input:focus-visible { box-shadow: var(--focus); }
+
+.hint { margin: 8px 0 0; color: var(--text-muted); font-size: 13px; }
+.hint.error { color: var(--danger); }
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding-top: 6px;
+}
+
+.button {
+    font: inherit;
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 8px 16px;
+    min-height: 36px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s;
+}
+/* A button whose label changes holds every label in one cell, the others hidden: its size is the
+   longest label's, so it never changes. */
+.button.labels { display: inline-grid; justify-items: center; align-items: center; }
+.button.labels > * { grid-area: 1 / 1; }
+.button.labels > [hidden] { display: inline; visibility: hidden; }
+
+.button.primary { background: var(--accent); color: var(--accent-text); }
+.button.primary:hover { background: var(--accent-hover); }
+.button.secondary { background: var(--surface-raised); color: var(--text); border-color: var(--border); }
+.button.secondary:hover { border-color: var(--accent); }
+.button.ghost { background: transparent; color: var(--text-muted); }
+.button.ghost:hover { color: var(--text); background: var(--surface-raised); }
+.button.small { padding: 4px 10px; min-height: 28px; font-size: 13px; }
+.button:disabled { opacity: 0.6; cursor: progress; }
+
+.banner {
+    margin-bottom: 18px;
+    padding: 10px 14px;
+    border: 1px solid var(--danger);
+    border-radius: 8px;
+    background: var(--danger-soft);
+    color: var(--danger);
+}
+
+.footnote {
+    margin: 16px 0 0;
+    color: var(--text-muted);
+    font-size: 12px;
+    word-break: break-all;
+}
+
+.table-wrap { overflow-x: auto; }
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+th, td {
+    padding: 8px 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+th { color: var(--text-muted); font-weight: 600; font-size: 12px; }
+.num { text-align: right; }
+tr.best td.fps { color: var(--accent); font-weight: 700; }
+tbody tr:last-child td { border-bottom: 0; }
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+    .topbar, .layout { padding-left: 16px; padding-right: 16px; }
+    .card { padding: 16px; }
+    select { min-width: 0; width: 100%; }
+    .field { min-width: 0; flex: 1 1 120px; }
+}

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>uniapi notify</title>
+<style>
+    :root { color-scheme: light dark; font: 16px/1.5 system-ui, sans-serif; }
+    body { margin: 0; padding: 28px 32px; display: grid; gap: 12px; max-width: 480px; }
+    h1 { margin: 0; font-size: 24px; }
+    label { display: grid; gap: 4px; font-size: 14px; }
+    input[type=text] { font: inherit; padding: 6px 10px; }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    button { font: inherit; padding: 6px 16px; }
+    #log { margin: 0; font: 13px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; color: GrayText; }
+    #log .error { color: #d93025; }
+</style>
+</head>
+<body>
+<h1>Notifications</h1>
+<label>Title <input type="text" id="title" value="Export done"></label>
+<label>Text <input type="text" id="body" value="mix.wav is ready."></label>
+<div class="row">
+    <button id="now">Notify</button>
+    <button id="later">Notify in 5 s</button>
+</div>
+<p>“In 5 s” gives you time to switch to another app: a click on the notification brings this
+window back. Click one to see it logged below.</p>
+<pre id="log"></pre>
+
+<script src="/uniapi/uniapi.js"></script>
+<script>
+// The page of examples/uniapi_notify (main.cpp).
+const app = uniapi.connect({ page: 'notify' });
+const log = (text, error) => {
+    const line = document.createElement('div');
+    line.textContent = `${new Date().toLocaleTimeString()}  ${text}`;
+    if (error) line.className = 'error';
+    document.getElementById('log').prepend(line);
+};
+
+async function notify() {
+    try {
+        const id = await app.native.notify(document.getElementById('title').value,
+                                           document.getElementById('body').value);
+        log(`shown: ${id}`);
+    } catch (error) {
+        log(`not shown: ${error.message ?? error}`, true);
+    }
+}
+
+document.getElementById('now').onclick = notify;
+document.getElementById('later').onclick = () => {
+    log('in 5 seconds…');
+    setTimeout(notify, 5000);
+};
+// C++'s onNotificationClicked.
+app.on('clicked', (id) => log(`clicked: ${id}`));
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>uniapi placement test</title>
+<style>
+    body { margin: 0; padding: 16px; font: 13px/1.5 system-ui, sans-serif; background: #16191e; color: #d4dae3; }
+    h1 { font-size: 16px; margin: 0 0 8px; }
+    #log { font-family: ui-monospace, Consolas, monospace; font-size: 12px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>uniapi placement test</h1>
+<p>C++ moves, resizes, minimises and maximises this window and checks each; the results appear here.</p>
+<p><button id="minimize">Minimise, restore after 3 s</button> <span id="hand"></span></p>
+<div id="log"></div>
+<script src="/uniapi/uniapi.js"></script>
+<script>
+const name = location.search.slice(1) || 'main';
+const app = uniapi.connect({ page: name });
+app.expose({
+    showResults: (lines) => { document.getElementById('log').textContent = lines.join('\n'); },
+    showByHand: (text) => { document.getElementById('hand').textContent = text; },
+});
+// By hand: C++ minimises the window, says whether Minimized sees it, restores it 3 s later.
+document.getElementById('minimize').addEventListener('click', () => app.native.minimizeByHand());
+</script>
+</body>
+</html>

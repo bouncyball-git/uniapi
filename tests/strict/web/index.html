@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>uniapi strict calls test</title>
+<style>
+    body { margin: 0; padding: 16px; font: 13px/1.5 system-ui, sans-serif; background: #16191e; color: #d4dae3; }
+    #log { font-family: ui-monospace, Consolas, monospace; font-size: 12px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>uniapi strict calls test</h1>
+<div id="log"></div>
+<script src="/uniapi/uniapi.js"></script>
+<script>
+// Calls C++'s exposed functions with the mistakes AppOptions::strictCalls is about, and hands
+// C++ what each answered: {value} or {error}.
+const app = uniapi.connect({ page: 'strict' });
+const answer = (promise) => promise.then((value) => ({ value }), (error) => ({ error: String(error.message ?? error) }));
+app.expose({
+    run: async () => ({
+        extra: await answer(app.native.add(1, 2, 3)),
+        few: await answer(app.native.add(1)),
+        exact: await answer(app.native.add(1, 2)),
+        misspelt: await answer(app.native.set({ volum: 3 })),
+        spelt: await answer(app.native.set({ volume: 3, name: 'a' })),
+        nested: await answer(app.native.setMixer({ main: { volume: 1, name: 'm' }, channels: [{ volume: 2, name: 'c', pan: 5 }] })),
+        wrongType: await answer(app.native.add('x', 1)),
+        map: await answer(app.native.count({ a: 1, b: 2, c: 3 })),
+        json: await answer(app.native.keys({ anything: 1, goes: 2 })),
+        bytes: await answer(app.native.withBytes({ data: new Uint8Array([1, 2, 3]), label: 'x' })),
+    }),
+    show: (text) => { document.getElementById('log').textContent = text; },
+});
+</script>
+</body>
+</html>

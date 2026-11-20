@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>uniapi lifecycle test</title>
+<style>
+    body { margin: 0; padding: 16px; font: 13px/1.5 system-ui, sans-serif; background: #16191e; color: #d4dae3; }
+    h1 { font-size: 16px; margin: 0 0 8px; }
+    button { font: inherit; margin-right: 8px; }
+    #log { font-family: ui-monospace, Consolas, monospace; font-size: 12px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>uniapi lifecycle test: main window</h1>
+<p>C++ hides and shows windows and asks them to close; the results appear here and on the console.</p>
+<div id="log"></div>
+<p id="by-hand" hidden>
+    By hand: <button id="hide">Hide for 2 seconds</button><button id="quit">Quit</button>
+    <span id="close-note"></span>
+</p>
+<script src="/uniapi/uniapi.js"></script>
+<script>
+const app = uniapi.connect({ page: 'main' });
+app.expose({
+    echo: (x) => x,
+    showResults: (lines, note) => {
+        document.getElementById('log').textContent = lines.join('\n');
+        document.getElementById('by-hand').hidden = false;
+        document.getElementById('close-note').textContent = note;
+    },
+});
+document.getElementById('hide').onclick = () => app.emit('hideBriefly');
+document.getElementById('quit').onclick = () => app.emit('quit');
+</script>
+</body>
+</html>

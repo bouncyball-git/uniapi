@@ -1,0 +1,31 @@
+{
+  "light": {
+    "uni": "#ffffff",
+    "api": "#1f8fe0",
+    "outline": "#8fc7f0",
+    "outlineOpacity": 0.5
+  },
+  "dark": {
+    "uni": "#2a2f37",
+    "api": "#1f8fe0",
+    "outline": "#245f8c",
+    "outlineOpacity": 0.5
+  },
+  "gray": {
+    "uni": "#a7adb6",
+    "api": "#5c636d",
+    "outline": "#828892",
+    "outlineOpacity": 0.5
+  },
+  "emboss": {
+    "uni": "rgba(255, 255, 255, 0.22)",
+    "api": "rgba(0, 0, 0, 0.16)",
+    "outline": "#808080",
+    "outlineOpacity": 0.5,
+    "emboss": {
+      "light": 0.22,
+      "dark": 0.16,
+      "shadow": 0.16
+    }
+  }
+}

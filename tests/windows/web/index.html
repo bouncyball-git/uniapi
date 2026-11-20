@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>uniapi windows test</title>
+<style>
+    body { margin: 0; padding: 16px; font: 13px/1.5 system-ui, sans-serif; background: #16191e; color: #d4dae3; }
+    h1 { font-size: 16px; margin: 0 0 8px; }
+    #log { font-family: ui-monospace, Consolas, monospace; font-size: 12px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>uniapi windows test: main window</h1>
+<p>C++ opens further windows and checks each; the results appear here and on the console.</p>
+<div id="log"></div>
+<script src="/uniapi/uniapi.js"></script>
+<script>
+const app = uniapi.connect({ page: 'main' });
+// Only the main page has this: a call C++ makes to another window's page must not reach it.
+app.expose({
+    mainOnly: () => 'main page',
+    showResults: (lines) => { document.getElementById('log').textContent = lines.join('\n'); },
+});
+// An event C++ sends to another window must not arrive here.
+app.on('ping', (n) => app.emit('mainPong', n));
+// A stream that reaches this page and a further window's: this one keeps a frame marked "hold"
+// until C++ says letGo, to show the slot comes back only once every page handed it back.
+let letGo = null;
+app.on('letGo', () => {
+    if (letGo) letGo();
+    letGo = null;
+});
+app.stream('both', (bytes, meta) => {
+    let sum = 0;
+    for (let i = 0; i < bytes.length; i++) sum += bytes[i];
+    app.emit('mainSaw', { sum, seq: meta?.seq ?? null });
+    if (meta?.hold) return new Promise((resolve) => { letGo = resolve; });
+});
+</script>
+</body>
+</html>

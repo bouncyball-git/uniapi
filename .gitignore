@@ -1,0 +1,7 @@
+# CMake build output (the default "out/" and ".vs/" are what Visual Studio's CMake integration uses)
+build*/
+out/
+.vs/
+# build.ps1 / build.sh install here by default
+install/
+__pycache__/

@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>uniapi logo</title>
+<style>
+    :root { font: 13px/1.4 system-ui, sans-serif; --bg: #ffffff; --ink: #16191e; --dim: rgba(22, 25, 30, 0.6); }
+    html, body { margin: 0; height: 100%; }
+    body {
+        display: flex; flex-direction: column;
+        background: var(--bg); color: var(--ink);
+        transition: background-color 0.6s ease, color 0.6s ease;
+        user-select: none;
+    }
+    /* The rows as one block (as wide as the widest), in the middle of the page both ways. */
+    main {
+        flex: 1; display: grid; grid-template-columns: max-content; align-content: center; justify-content: center;
+        gap: 16px; padding: 22px 28px; overflow: auto;
+    }
+    /* While measuring (fitWindow): everything at its natural size, nothing wrapped. */
+    .measuring body { width: max-content; height: auto; }
+    .measuring main { flex: none; overflow: visible; }
+    .measuring .row { grid-template-columns: 92px max-content; }
+    .measuring .sizes, .measuring footer { flex-wrap: nowrap; }
+    .row { display: grid; grid-template-columns: 92px 1fr; align-items: end; gap: 18px; }
+    .row h2 { margin: 0 0 6px; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; transition: color 0.6s; }
+    .row h2 small { display: block; font-weight: 400; color: var(--dim); letter-spacing: 0; }
+    .sizes { display: flex; align-items: flex-end; gap: 22px; flex-wrap: wrap; }
+    figure { margin: 0; display: grid; justify-items: center; gap: 6px; }
+    figure img { display: block; }
+    figure img.large { width: 128px; height: 128px; }
+    figcaption { font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; }
+    .wordmark { display: flex; align-items: center; gap: 10px; }
+    .wordmark img { width: 40px; height: 40px; }
+    /* NAME_PAD: its room round the letters. Here the name stands alone beside the logo (no text to
+       match: beside text, doc/logo/name-fit.js puts its u, n, a on the text's capitals), so it is
+       only lowered 3 px from centred, its letters' body level with the logo's middle. */
+    .word { display: block; overflow: visible; margin: 0 -4px; position: relative; top: 3px; }
+
+    /* The controls: a bar of their own, readable on any background. */
+    footer {
+        display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+        padding: 10px 16px; background: #1c2026; color: #d4dae3; border-top: 1px solid #2b3038;
+    }
+    footer button, footer label { font: inherit; color: inherit; }
+    footer button {
+        padding: 5px 12px; border: 1px solid #3a414c; border-radius: 6px; background: #262b33; cursor: pointer;
+    }
+    footer button:hover { background: #2f353f; }
+    /* A key whose label changes holds every label in one cell, the others hidden: its size is the
+       longest label's, so it never changes. */
+    .labels { display: inline-grid; justify-items: center; }
+    .labels > * { grid-area: 1 / 1; }
+    .labels > [hidden] { display: inline; visibility: hidden; }
+    footer button:focus-visible { outline: none; border-color: #1f8fe0; }
+    #swatches { display: flex; gap: 4px; flex-wrap: wrap; }
+    #swatches button {
+        width: 22px; height: 22px; padding: 0; border-radius: 5px; border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+    #swatches button.on { box-shadow: 0 0 0 2px #1c2026, 0 0 0 4px #1f8fe0; }
+    #pick { width: 34px; height: 26px; padding: 0; border: none; background: none; cursor: pointer; }
+    #name { min-width: 150px; font-variant-numeric: tabular-nums; }
+    .spacer { flex: 1; }
+</style>
+</head>
+<body>
+<main id="rows"></main>
+<footer>
+    <!-- Both labels in the same place, one shown: the key is as wide as the longer one, always. -->
+    <button id="play" class="labels" title="Space"><span data-when="playing">Pause</span><span data-when="paused" hidden>Play</span></button>
+    <button id="prev" title="Left arrow">◀</button>
+    <button id="next" title="Right arrow">▶</button>
+    <button id="random" title="R">Random</button>
+    <div id="swatches" role="group" aria-label="Backgrounds"></div>
+    <input id="pick" type="color" value="#ffffff" aria-label="Any colour">
+    <span class="spacer"></span>
+    <span id="name"></span>
+</footer>
+
+<script src="/uniapi/uniapi.js"></script>
+<script>
+// The logo's files come from C++ (main.cpp: doc/logo compiled in), as binary data.
+const app = uniapi.connect({ page: 'uniapi_logo' });
+
+// `key`: the version in doc/logo/colors.json (its word's colours).
+const VERSIONS = [
+    { id: '', key: 'light', name: 'Light', note: 'white and blue' },
+    { id: '-dark', key: 'dark', name: 'Dark', note: 'ink and blue' },
+    { id: '-gray', key: 'gray', name: 'Gray', note: 'two greys' },
+    { id: '-emboss', key: 'emboss', name: 'Emboss', note: 'tints and a subtle relief' },
+];
+// The PNGs make.py renders for each size (what icons show), drawn at that many screen pixels.
+// (256 and 512 are rendered too; the SVG shows the large sizes here, so the rows fit.)
+const SIZES = [16, 32, 48, 64, 128];
+
+// The logo's own three colours (the hard cases: one half of a tile meets the background), then
+// others: neutrals light to dark, and warm and cool colours the logo doesn't have.
+const BACKGROUNDS = [
+    ['Logo white', '#ffffff'], ['Logo blue', '#1f8fe0'], ['Logo ink', '#2a2f37'],
+    ['Paper', '#eef1f5'], ['Mid grey', '#808080'], ['Black', '#000000'],
+    ['Red', '#e0402f'], ['Orange', '#f28c28'], ['Yellow', '#f2c200'],
+    ['Green', '#2fa84f'], ['Teal', '#14a3a3'], ['Purple', '#7b4bd6'],
+];
+
+const urls = new Map();
+async function fileUrl(path) {
+    if (!urls.has(path)) {
+        const bytes = await app.native.logo(path);
+        urls.set(path, URL.createObjectURL(new Blob([bytes], { type: path.endsWith('.svg') ? 'image/svg+xml' : 'image/png' })));
+    }
+    return urls.get(path);
+}
+
+// #rrggbb at an opacity, as rgba().
+function rgba(hex, alpha) {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+// The name beside the logo, drawn from its outlines (doc/logo/name.json: "uniapi" lettered in
+// Orbitron, no font needed) at NAME_SIZE px to the em: "uni" in the logo's left colour, "api" in
+// its right colour, outlined as the logo is (its colours mixed, half transparent, a crisp 1 px
+// line; never blurred), so it reads on every background here. The embossed version's name: its
+// tints, "uni" lighter than the background as the C is and "api" darker as the J is, the same
+// outline and a soft shadow (the logo's); its letters are translucent, so the outline and the
+// shadow lie outside them only (an SVG filter), never seen through them.
+const NAME_SIZE = 26;
+const NAME_PAD = 4;  // room round the letters for the outline and the shadow
+function wordmark(colours, name) {
+    const s = NAME_SIZE / name.em;
+    const w = name.width * s + 2 * NAME_PAD, h = (name.bottom - name.top) * s + 2 * NAME_PAD;
+    const place = `translate(${NAME_PAD} ${NAME_PAD - name.top * s}) scale(${s})`;
+    const outline = rgba(colours.outline, colours.outlineOpacity);
+    let body;
+    if (colours.emboss) {
+        const e = colours.emboss;
+        body = `<defs><filter id="name-around" x="-10%" y="-40%" width="120%" height="180%" color-interpolation-filters="sRGB">
+ <feOffset in="SourceAlpha" dx="1" dy="1.2"/><feGaussianBlur stdDeviation="1.2"/>
+ <feComposite in2="SourceAlpha" operator="out" result="cast"/>
+ <feFlood flood-color="#000" flood-opacity="${e.shadow}"/><feComposite in2="cast" operator="in" result="shadow"/>
+ <feMorphology in="SourceAlpha" operator="dilate" radius="1"/>
+ <feComposite in2="SourceAlpha" operator="out" result="ring"/>
+ <feFlood flood-color="${colours.outline}" flood-opacity="${colours.outlineOpacity}"/><feComposite in2="ring" operator="in" result="outline"/>
+ <feMerge><feMergeNode in="shadow"/><feMergeNode in="outline"/></feMerge>
+</filter></defs>
+<g filter="url(#name-around)"><g transform="${place}" fill="#000"><path d="${name.uni}"/><path d="${name.api}"/></g></g>
+<g transform="${place}"><path d="${name.uni}" fill="#fff" fill-opacity="${e.light}"/><path d="${name.api}" fill="#000" fill-opacity="${e.dark}"/></g>`;
+    } else {
+        // A 2 px stroke under the letters (paint-order): 1 px of it shows round them.
+        body = `<g transform="${place}" stroke="${outline}" stroke-width="${2 / s}" stroke-linejoin="round" paint-order="stroke fill">
+<path d="${name.uni}" fill="${colours.uni}"/><path d="${name.api}" fill="${colours.api}"/></g>`;
+    }
+    const holder = document.createElement('span');
+    holder.innerHTML = `<svg class="word" xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="uniapi">${body}</svg>`;
+    return holder.firstElementChild;
+}
+
+// One row per version: the PNGs at true screen pixels, the SVG larger, and with the name.
+async function build() {
+    const json = async (path) => JSON.parse(new TextDecoder().decode(await app.native.logo(path)));
+    const colours = await json('colors.json');
+    const name = await json('name.json');
+    const rows = document.getElementById('rows');
+    for (const version of VERSIONS) {
+        const row = document.createElement('section');
+        row.className = 'row';
+        row.innerHTML = `<h2>${version.name}<small>${version.note}</small></h2><div class="sizes"></div>`;
+        const sizes = row.querySelector('.sizes');
+        for (const size of SIZES) {
+            const figure = document.createElement('figure');
+            const img = document.createElement('img');
+            img.alt = `${version.name} logo, ${size} px`;
+            img.dataset.size = size;
+            img.src = await fileUrl(`png/uniapi${version.id}-${size}.png`);
+            figure.append(img, Object.assign(document.createElement('figcaption'), { textContent: `${size}` }));
+            sizes.append(figure);
+        }
+        // Larger: the SVG, then the SVG with the name.
+        const svg = await fileUrl(`uniapi${version.id}.svg`);
+        const large = document.createElement('figure');
+        large.innerHTML = `<img class="large" alt="${version.name} logo (SVG)"><figcaption>SVG</figcaption>`;
+        large.querySelector('img').src = svg;
+        const mark = document.createElement('figure');
+        mark.innerHTML = `<div class="wordmark"><img alt=""></div><figcaption>with the name</figcaption>`;
+        mark.querySelector('img').src = svg;
+        mark.querySelector('.wordmark').append(wordmark(colours[version.key], name));
+        sizes.append(large, mark);
+        rows.append(row);
+    }
+    fitPixels();
+}
+
+// Each PNG at its own size in screen pixels (so 16 is a real 16 px icon at any display scale).
+function fitPixels() {
+    for (const img of document.querySelectorAll('img[data-size]')) {
+        const css = Number(img.dataset.size) / devicePixelRatio;
+        img.style.width = img.style.height = `${css}px`;
+    }
+}
+matchMedia(`(resolution: ${devicePixelRatio}dppx)`).addEventListener('change', fitPixels);
+addEventListener('resize', fitPixels);
+
+// --- The background ---
+function luminance(hex) {
+    const [r, g, b] = [1, 3, 5].map((i) => {
+        const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+let index = 0;
+let playing = true;
+function show(name, hex) {
+    const light = luminance(hex) > 0.36;
+    document.body.style.setProperty('--bg', hex);
+    document.body.style.setProperty('--ink', light ? '#16191e' : '#eef1f5');
+    document.body.style.setProperty('--dim', light ? 'rgba(22, 25, 30, 0.6)' : 'rgba(238, 241, 245, 0.65)');
+    document.getElementById('name').textContent = `${name}  ${hex}`;
+    document.getElementById('pick').value = hex;
+    document.querySelectorAll('#swatches button').forEach((b, i) => b.classList.toggle('on', BACKGROUNDS[i]?.[1] === hex));
+}
+function go(i) {
+    index = (i + BACKGROUNDS.length) % BACKGROUNDS.length;
+    show(...BACKGROUNDS[index]);
+}
+function setPlaying(on) {
+    playing = on;
+    for (const label of document.querySelectorAll('#play [data-when]')) label.hidden = (label.dataset.when === 'playing') !== on;
+}
+function randomColour() {
+    const hex = '#' + Array.from({ length: 3 }, () => Math.floor(Math.random() * 256).toString(16).padStart(2, '0')).join('');
+    setPlaying(false);
+    show('Random', hex);
+}
+
+const swatches = document.getElementById('swatches');
+BACKGROUNDS.forEach(([name, hex], i) => {
+    const b = document.createElement('button');
+    b.style.background = hex;
+    b.title = `${name} ${hex}`;
+    b.addEventListener('click', () => { setPlaying(false); go(i); });
+    swatches.append(b);
+});
+document.getElementById('play').addEventListener('click', () => setPlaying(!playing));
+document.getElementById('prev').addEventListener('click', () => { setPlaying(false); go(index - 1); });
+document.getElementById('next').addEventListener('click', () => { setPlaying(false); go(index + 1); });
+document.getElementById('random').addEventListener('click', randomColour);
+document.getElementById('pick').addEventListener('input', (e) => { setPlaying(false); show('Picked', e.target.value); });
+addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.key === ' ') { e.preventDefault(); setPlaying(!playing); }
+    else if (e.key === 'ArrowLeft') { setPlaying(false); go(index - 1); }
+    else if (e.key === 'ArrowRight') { setPlaying(false); go(index + 1); }
+    else if (e.key === 'r' || e.key === 'R') randomColour();
+});
+setInterval(() => { if (playing) go(index + 1); }, 3000);  // a colour every 3 s (each fading in over 0.6 s)
+
+// The window just big enough for the content: measured at its natural size (rows unwrapped, the
+// controls on one line), then C++ sizes the window to it and shows it.
+async function fitWindow() {
+    const root = document.documentElement;
+    root.classList.add('measuring');
+    const box = document.body.getBoundingClientRect();
+    root.classList.remove('measuring');
+    await app.native.fit(Math.ceil(box.width), Math.ceil(box.height));
+}
+
+go(0);
+build()
+    .catch((error) => { document.getElementById('rows').textContent = `Couldn't load the logo: ${error.message}`; })
+    .then(fitWindow);
+</script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>uniapi tray</title>
+<style>
+    :root { color-scheme: light dark; font: 16px/1.5 system-ui, sans-serif; }
+    body { margin: 0; padding: 28px 32px; display: grid; gap: 12px; max-width: 460px; }
+    h1 { margin: 0; font-size: 24px; }
+    p { margin: 0; }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    button { font: inherit; padding: 6px 16px; }
+    #status { color: GrayText; font-size: 14px; }
+</style>
+</head>
+<body>
+<h1>Tray</h1>
+<p id="where">The app's icon is in the tray.</p>
+<div class="row">
+    <button id="hide">Hide to the tray</button>
+    <label class="row"><input type="checkbox" id="muted"> Muted (also in the tray's menu)</label>
+    <button id="quit">Quit</button>
+</div>
+<p>Closing this window hides it: the app keeps running in the tray. Bring it back from the tray's
+menu (“Show window”) or, where a click on the icon shows it, by clicking the icon.</p>
+<p id="status">Waiting for C++…</p>
+
+<script src="/uniapi/uniapi.js"></script>
+<script>
+// The page of examples/uniapi_tray (main.cpp).
+const app = uniapi.connect({ page: 'tray' });
+const muted = document.getElementById('muted');
+
+app.on('state', ({ tray, muted: on, clicks }) => {
+    muted.checked = on;
+    document.getElementById('where').textContent = tray
+        ? "The app's icon is in the tray."
+        : 'This desktop has no tray: closing the window ends the app.';
+    document.getElementById('hide').disabled = !tray;
+    document.getElementById('status').textContent = `Clicks on the tray icon: ${clicks}.`;
+});
+muted.onchange = () => app.emit('muted', muted.checked);
+document.getElementById('hide').onclick = () => app.native.hide();
+document.getElementById('quit').onclick = () => app.native.quit();
+</script>
+</body>
+</html>

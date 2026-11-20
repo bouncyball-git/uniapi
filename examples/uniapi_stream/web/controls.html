@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stream Settings</title>
+<link rel="stylesheet" href="controls.css">
+</head>
+<body>
+<header class="topbar">
+    <h1>Stream settings</h1>
+    <button type="button" id="back" class="button secondary">Back to demo</button>
+</header>
+
+<main class="layout">
+    <form id="settings" class="card" novalidate>
+        <div id="error" class="banner" role="alert" hidden></div>
+
+        <fieldset>
+            <legend>Resolution</legend>
+            <div class="row">
+                <label class="field">
+                    <span class="label">Frame size</span>
+                    <select id="preset" name="preset">
+                        <option value="640x360">360p · 640 × 360</option>
+                        <option value="1280x720">720p · 1280 × 720</option>
+                        <option value="1920x1080">1080p · 1920 × 1080</option>
+                        <option value="2560x1440">1440p · 2560 × 1440</option>
+                        <option value="3840x2160">4K · 3840 × 2160</option>
+                        <option value="7680x4320">8K · 7680 × 4320</option>
+                        <option value="custom">Custom…</option>
+                    </select>
+                </label>
+                <label class="field" data-custom hidden>
+                    <span class="label">Width</span>
+                    <input id="width" name="width" type="number" min="1" max="16384" step="1" inputmode="numeric">
+                </label>
+                <label class="field" data-custom hidden>
+                    <span class="label">Height</span>
+                    <input id="height" name="height" type="number" min="1" max="16384" step="1" inputmode="numeric">
+                </label>
+            </div>
+        </fieldset>
+
+        <fieldset>
+            <legend>Mode</legend>
+            <div class="choices">
+                <label class="choice">
+                    <input type="radio" name="mode" value="timed">
+                    <span class="choice-title">Timed</span>
+                    <span class="choice-text">About 60 frames per second, paced by a timer.</span>
+                </label>
+                <label class="choice">
+                    <input type="radio" name="mode" value="benchmark">
+                    <span class="choice-title">Benchmark</span>
+                    <span class="choice-text">As fast as possible: a new frame as soon as the page hands a buffer back.</span>
+                </label>
+                <label class="choice">
+                    <input type="radio" name="mode" value="transport">
+                    <span class="choice-title">Transfer only</span>
+                    <span class="choice-text">As fast as possible, without rendering or drawing. Measures the hand-off alone.</span>
+                </label>
+            </div>
+        </fieldset>
+
+        <fieldset>
+            <legend>Draw method</legend>
+            <div class="choices">
+                <label class="choice">
+                    <input type="radio" name="draw" value="2d">
+                    <span class="choice-title">2D canvas</span>
+                    <span class="choice-text">GPU-backed canvas. The default.</span>
+                </label>
+                <label class="choice">
+                    <input type="radio" name="draw" value="2d-cpu">
+                    <span class="choice-title">2D canvas, CPU</span>
+                    <span class="choice-text">Canvas kept in CPU memory. Fastest at small sizes.</span>
+                </label>
+                <label class="choice">
+                    <input type="radio" name="draw" value="webgl">
+                    <span class="choice-title">WebGL</span>
+                    <span class="choice-text">Texture upload. Slightly faster up to 1080p.</span>
+                </label>
+            </div>
+            <p id="draw-note" class="hint" hidden>Transfer-only mode doesn't draw, so the draw method has no effect.</p>
+        </fieldset>
+
+        <fieldset>
+            <legend>Buffers</legend>
+            <div class="row">
+                <label class="field narrow">
+                    <span class="label">Shared buffers</span>
+                    <input id="slots" name="slots" type="number" min="1" max="64" step="1" required inputmode="numeric">
+                </label>
+                <p id="memory" class="hint grow"></p>
+            </div>
+        </fieldset>
+
+        <fieldset>
+            <legend>Display</legend>
+            <label class="check">
+                <input type="checkbox" id="stats" name="stats">
+                <span>Show the Native stats overlay on the demo page</span>
+            </label>
+            <p class="hint">The demo page's Stats button, or the S key there, switches it too.</p>
+        </fieldset>
+
+        <div class="actions">
+            <button type="submit" id="apply" class="button primary labels"><span data-when="idle">Apply &amp; run</span><span data-when="busy" hidden>Applying…</span></button>
+            <button type="button" id="reset" class="button ghost">Reset to defaults</button>
+        </div>
+        <p id="config-path" class="footnote"></p>
+    </form>
+
+    <section class="card" aria-labelledby="history-title">
+        <div class="card-head">
+            <h2 id="history-title">Run history</h2>
+            <div class="head-actions">
+                <button type="button" id="save" class="button secondary small labels"><span data-when="idle">Save results…</span><span data-when="busy" hidden>Saving…</span></button>
+                <button type="button" id="clear" class="button ghost small">Clear</button>
+            </div>
+        </div>
+        <p id="save-status" class="status" role="status" hidden></p>
+        <p id="history-empty" class="hint">No runs yet. Apply settings, then come back here to see the results.</p>
+        <div class="table-wrap">
+            <table id="history" hidden>
+                <thead>
+                    <tr>
+                        <th scope="col">Resolution</th>
+                        <th scope="col">Mode</th>
+                        <th scope="col">Draw</th>
+                        <th scope="col" class="num">Slots</th>
+                        <th scope="col" class="num">FPS</th>
+                        <th scope="col" class="num">ms / frame</th>
+                        <th scope="col" class="num">Render ms</th>
+                        <th scope="col" class="num">Draw ms</th>
+                        <th scope="col" class="num">GB/s</th>
+                        <th scope="col"><span class="visually-hidden">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </section>
+</main>
+
+<script src="/uniapi/uniapi.js"></script>
+<script src="controls.js"></script>
+</body>
+</html>

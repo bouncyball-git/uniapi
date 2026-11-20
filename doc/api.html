@@ -1,0 +1,1911 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>uniapi API</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: sticky contents rail beside one reading column (~70ch) on wide screens; figures,
+   tables and code widen to the main column and scroll sideways on phones. */
+:root {
+    --bg: #f3f5f8;
+    --surface: #ffffff;
+    --lane: #e8ecf2;
+    --fg: #18202c;
+    --muted: #586375;
+    --line: #c5ccd7;
+    --line-strong: #8a95a7;
+    --chip: #e1e6ee;
+    --shm: #b05a00;        /* shared memory */
+    --shm-soft: #fbe8d0;
+    --shm-text: #864300;
+    --msg: #1d5bd0;        /* JSON messages */
+    --msg-soft: #e2ebfb;
+    --res: #6b7586;        /* requests over the app's URL scheme */
+    --bad: #b42318;
+    --font-display: "IBM Plex Sans Condensed", "Arial Narrow", "Segoe UI", sans-serif;
+    --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --bg: #0f1318; --surface: #1c222c; --lane: #151a22; --fg: #e3e7ee; --muted: #9aa3b3;
+        --line: #2c343f; --line-strong: #5a6577; --chip: #262e3a;
+        --shm: #f0a142; --shm-soft: #3a2911; --shm-text: #f5b868;
+        --msg: #73a3ff; --msg-soft: #19284a; --res: #8d97a8; --bad: #ff8a7a;
+        color-scheme: dark;
+    }
+}
+:root[data-theme="dark"] {
+    --bg: #0f1318; --surface: #1c222c; --lane: #151a22; --fg: #e3e7ee; --muted: #9aa3b3;
+    --line: #2c343f; --line-strong: #5a6577; --chip: #262e3a;
+    --shm: #f0a142; --shm-soft: #3a2911; --shm-text: #f5b868;
+    --msg: #73a3ff; --msg-soft: #19284a; --res: #8d97a8; --bad: #ff8a7a;
+    color-scheme: dark;
+}
+
+html { scroll-padding-top: 16px; }
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.6 var(--font-body);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 40px 72px;
+}
+
+.shell { max-width: 1240px; margin: 0 auto; display: grid; gap: 40px; }
+@media (min-width: 1180px) {
+    .shell { grid-template-columns: 220px minmax(0, 1fr); gap: 56px; }
+    nav.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; max-height: calc(100vh - 48px); overflow-y: auto; }
+}
+main { display: grid; gap: 64px; min-width: 0; }
+
+nav.toc { font-size: 14px; display: grid; gap: 14px; align-content: start; }
+nav.toc .group { display: grid; gap: 2px; }
+nav.toc .label { font: 500 11px/1.4 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+nav.toc a { color: var(--fg); text-decoration: none; padding: 2px 0; }
+nav.toc a:hover { color: var(--msg); }
+nav.toc a code { font-size: 12.5px; }
+@media (max-width: 1179px) {
+    nav.toc { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+}
+
+a { color: var(--msg); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--msg); outline-offset: 2px; border-radius: 3px; }
+
+header { display: grid; gap: 14px; }
+/* The logo and its name: "uni" in the logo's left colour, "api" in its right, the name drawn from
+   its outlines and placed by logo/name-fit.js (its u, n and a exactly as tall as API's capitals,
+   on their baseline). The dark logo and name (ink "uni") on the light theme, the light ones
+   (white "uni") on the dark one. */
+header .logo { display: block; }
+header .logo.on-dark, h1 .name.on-dark { display: none; }
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) header .logo.on-light, :root:not([data-theme="light"]) h1 .name.on-light { display: none; }
+    :root:not([data-theme="light"]) header .logo.on-dark { display: block; }
+    :root:not([data-theme="light"]) h1 .name.on-dark { display: inline; }
+}
+:root[data-theme="dark"] header .logo.on-light, :root[data-theme="dark"] h1 .name.on-light { display: none; }
+:root[data-theme="dark"] header .logo.on-dark { display: block; }
+:root[data-theme="dark"] h1 .name.on-dark { display: inline; }
+.eyebrow { font: 500 12px/1 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; text-wrap: balance; margin: 0; letter-spacing: -0.005em; }
+h1 { font-size: clamp(34px, 5vw, 48px); line-height: 1.06; }
+h2 { font-size: 28px; line-height: 1.2; }
+h3 { font-size: 20px; line-height: 1.3; }
+p { margin: 0; }
+.lede { font-size: 18px; color: var(--muted); max-width: 64ch; }
+.prose { max-width: 70ch; display: grid; gap: 0.8em; }
+.prose ul, .prose ol { margin: 0; padding-left: 1.3em; display: grid; gap: 0.35em; }
+code, .mono { font-family: var(--font-mono); font-size: 0.88em; }
+p code, li code, td code, dd code, h3 code { background: var(--chip); padding: 0.05em 0.35em; border-radius: 4px; }
+h3 code { font-size: 0.8em; }
+
+section { display: grid; gap: 22px; }
+section > h2 { padding-top: 6px; border-top: 1px solid var(--line); padding-block-start: 18px; }
+.sub { display: grid; gap: 16px; }
+
+pre {
+    margin: 0;
+    font: 13.5px/1.55 var(--font-mono);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    tab-size: 4;
+}
+pre .c { color: var(--muted); }
+.pair { display: grid; gap: 16px; }
+@media (min-width: 860px) { .pair { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.pair > div { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.pair .cap { font: 500 12px/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+
+.legend { display: flex; flex-wrap: wrap; gap: 10px 28px; padding: 14px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; font-size: 14px; }
+.legend span { display: inline-flex; align-items: center; gap: 10px; }
+.swatch { display: inline-block; width: 34px; height: 0; border-top-width: 3px; border-top-style: solid; }
+.swatch.shm { border-top-color: var(--shm); border-top-width: 5px; }
+.swatch.msg { border-top-color: var(--msg); border-top-style: dashed; }
+.swatch.res { border-top-color: var(--res); border-top-style: dotted; }
+.swatch.call { border-top-color: var(--fg); border-top-width: 2px; }
+
+figure { margin: 0; display: grid; gap: 12px; }
+.diagram { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+.diagram svg { display: block; width: 100%; min-width: 760px; height: auto; }
+figcaption { font-size: 14px; color: var(--muted); max-width: 84ch; }
+figcaption strong { color: var(--fg); font-weight: 600; }
+
+/* SVG vocabulary, styled from the page so both themes work */
+svg text { font-family: var(--font-body); font-size: 12.5px; fill: var(--fg); }
+svg .t-title { font-weight: 600; font-size: 13.5px; }
+svg .t-head { font-family: var(--font-mono); font-weight: 500; font-size: 13px; }
+svg .t-sub { fill: var(--muted); font-size: 12px; }
+svg .t-mono { font-family: var(--font-mono); font-size: 11.5px; }
+svg .t-msg { fill: var(--msg); }
+svg .t-shm { fill: var(--shm-text); }
+svg .t-res { fill: var(--res); }
+svg .t-hex { font-family: var(--font-mono); font-size: 12px; }
+svg .t-strong { font-weight: 600; }
+svg .frame { fill: var(--lane); stroke: var(--line); }
+svg .box { fill: var(--surface); stroke: var(--line-strong); }
+svg .box-shm { fill: var(--shm-soft); stroke: var(--shm); }
+svg .box-msg { fill: var(--msg-soft); stroke: var(--msg); }
+svg .box-res { fill: var(--surface); stroke: var(--res); stroke-dasharray: 3 3; stroke-width: 1.5; }
+svg .band { fill: var(--lane); stroke: none; }
+svg .cell { fill: var(--surface); stroke: var(--line-strong); }
+svg .cell-op { fill: var(--chip); stroke: var(--line-strong); }
+svg .cell-str { fill: var(--shm-soft); stroke: var(--line-strong); }
+svg .shm { stroke: var(--shm); stroke-width: 4; fill: none; }
+svg .msg { stroke: var(--msg); stroke-width: 1.6; stroke-dasharray: 7 4; fill: none; }
+svg .res { stroke: var(--res); stroke-width: 1.6; stroke-dasharray: 2 4; stroke-linecap: round; fill: none; }
+svg .call { stroke: var(--fg); stroke-width: 1.4; fill: none; }
+svg .ret { stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 3 3; fill: none; }
+svg .life { stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 4 5; }
+svg .bracket { stroke: var(--muted); stroke-width: 1; fill: none; }
+svg .end { stroke: var(--bad); stroke-width: 2; }
+svg .head-fg { fill: var(--fg); }
+svg .head-muted { fill: var(--muted); }
+svg .head-msg { fill: var(--msg); }
+svg .head-shm { fill: var(--shm); }
+svg .head-res { fill: var(--res); }
+
+.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 680px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+th { font: 600 12px/1.3 var(--font-mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); background: var(--lane); }
+tbody tr:last-child td { border-bottom: 0; }
+td.k { white-space: nowrap; font-family: var(--font-mono); font-size: 13px; }
+td.dir { white-space: nowrap; font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.group td { background: var(--lane); font: 600 12px/1.3 var(--font-mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); padding-block: 7px; }
+.tag { display: inline-block; font: 500 11px/1.6 var(--font-mono); padding: 0 7px; border-radius: 999px; white-space: nowrap; }
+.tag.done { background: var(--msg-soft); color: var(--msg); }
+.tag.plan { background: var(--chip); color: var(--muted); }
+.tag.shm { background: var(--shm-soft); color: var(--shm-text); }
+.tag.any { background: var(--shm-soft); color: var(--shm-text); }
+
+/* Reference entries */
+.ref { display: grid; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.ref > .head { padding: 14px 18px; border-bottom: 1px solid var(--line); display: grid; gap: 6px; }
+.ref > .head p { color: var(--muted); font-size: 15px; max-width: 80ch; }
+.entry { display: grid; gap: 8px; padding: 14px 18px; border-bottom: 1px solid var(--line); min-width: 0; }
+.entry:last-child { border-bottom: 0; }
+.entry .sig { font: 500 13.5px/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; padding: 0; border: 0; background: none; overflow: visible; }
+.entry .sig .ret { color: var(--muted); font-weight: 400; }
+.entry .desc { display: grid; gap: 6px; max-width: 80ch; font-size: 15px; }
+.entry .desc ul { margin: 0; padding-left: 1.2em; display: grid; gap: 3px; }
+.entry pre { font-size: 13px; padding: 10px 12px; background: var(--bg); }
+.entry .tag { justify-self: start; }
+.groupname { padding: 8px 18px; background: var(--lane); font: 600 12px/1.3 var(--font-mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line); }
+
+.note { padding: 12px 16px; border-left: 3px solid var(--shm); background: var(--shm-soft); border-radius: 0 8px 8px 0; font-size: 15px; max-width: 80ch; }
+.note code { background: var(--surface); }
+
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+</head>
+<body>
+<div class="shell">
+
+<nav class="toc" aria-label="Contents">
+    <div class="group">
+        <span class="label">Guide</span>
+        <a href="#overview">Overview</a>
+        <a href="#architecture">How it fits together</a>
+        <a href="#lifecycle">Connecting a page</a>
+        <a href="#calls">Calls</a>
+        <a href="#events">Events</a>
+        <a href="#bytes">Binary data in calls</a>
+        <a href="#streams">Streams</a>
+        <a href="#dom">DOM command lists</a>
+        <a href="#threads">Threads</a>
+        <a href="#latency">Latency</a>
+        <a href="#coroutines">Coroutines (C++20)</a>
+        <a href="#pages">Serving pages</a>
+        <a href="#windows">More windows</a>
+        <a href="#hiding">Hiding, showing, closing</a>
+        <a href="#desktop">Links, drops, clipboard</a>
+        <a href="#placement">Window placement</a>
+        <a href="#notifications">Notifications</a>
+        <a href="#tray">The tray</a>
+    </div>
+    <div class="group">
+        <span class="label">C++ reference</span>
+        <a href="#ref-app"><code>App</code></a>
+        <a href="#ref-window"><code>Window</code> · <code>WindowOptions</code></a>
+        <a href="#ref-options"><code>AppOptions</code></a>
+        <a href="#ref-reply"><code>Reply</code> · <code>Result</code></a>
+        <a href="#ref-bytes"><code>Bytes</code></a>
+        <a href="#ref-stream"><code>Stream</code></a>
+        <a href="#ref-dom"><code>DomCommandWriter</code></a>
+        <a href="#ref-assets">Assets · helpers</a>
+        <a href="#ref-cmake">CMake</a>
+    </div>
+    <div class="group">
+        <span class="label">JavaScript reference</span>
+        <a href="#ref-js"><code>uniapi.connect()</code></a>
+    </div>
+    <div class="group">
+        <span class="label">C reference</span>
+        <a href="#ref-c"><code>uniapi.h</code></a>
+    </div>
+    <div class="group">
+        <span class="label">More</span>
+        <a href="#errors">Errors and edge cases</a>
+        <a href="#protocol">Protocol messages</a>
+        <a href="#porting">Adding a platform</a>
+    </div>
+</nav>
+
+<main>
+
+<header>
+    <img class="logo on-light" src="logo/uniapi-dark.svg" width="72" height="72" alt="uniapi logo">
+    <img class="logo on-dark" src="logo/uniapi.svg" width="72" height="72" alt="uniapi logo">
+    <span class="eyebrow">uniapi · API documentation</span>
+    <h1><span class="name on-light" data-variant="dark"></span><span class="name on-dark" data-variant="light"></span> <span class="caps">API</span></h1>
+    <p class="lede">A C++ library for desktop apps whose interface is a web page. JavaScript calls C++ functions, C++ calls JavaScript functions, and large data travels through shared memory where the platform allows it.</p>
+</header>
+
+<!-- ============================================================ OVERVIEW -->
+<section id="overview">
+    <h2>Overview</h2>
+    <div class="prose">
+        <p>An app has two halves. The C++ half owns the window and does the heavy work. The page half is ordinary HTML, CSS and JavaScript running in the platform's own web view. uniapi connects them with four things:</p>
+        <ul>
+            <li><strong>Calls</strong> in both directions. Each one is asynchronous: a Promise in JavaScript, a callback or a <code>Reply</code> in C++.</li>
+            <li><strong>Events</strong> in both directions, fire and forget.</li>
+            <li><strong>Streams</strong> for large binary data from C++ to the page: frames, images, buffers.</li>
+            <li><strong>DOM command lists</strong>, so C++ can build and update page elements without writing JavaScript.</li>
+        </ul>
+        <p>Arguments and return values are JSON, through <a href="https://github.com/nlohmann/json">nlohmann/json</a> (<code>uniapi::json</code>). The library is C++17.</p>
+        <p>The example below is close to <code>examples/hello</code>, which builds as <code>hello.exe</code>; <code>examples/hello_c</code> is the same app in C (see the <a href="#ref-c">C reference</a>). <code>examples/uniapi_stream</code> shows streams and DOM command lists at full speed, <code>tests/selftest</code> exercises every feature described here (coroutines included), and <code>tests/c_api</code> the C API.</p>
+    </div>
+
+    <div class="pair">
+        <div>
+            <span class="cap">C++ · main.cpp</span>
+<pre>#include &lt;uniapi/uniapi.hpp&gt;
+
+UNIAPI_ASSETS(my_web);   <span class="c">// from uniapi_embed() in CMake</span>
+
+int main() {
+    uniapi::AppOptions options;
+    options.title = "My app";
+    uniapi::App app(options);
+    app.serve(my_web);
+
+    app.expose("add", [](int a, int b) { return a + b; });
+
+    app.onConnect = [&amp;](const std::string&amp;) {
+        app.call("greet", uniapi::json::array({"from C++"}));
+    };
+
+    app.navigate("/index.html");
+    return app.run();    <span class="c">// returns when the window closes</span>
+}</pre>
+        </div>
+        <div>
+            <span class="cap">JavaScript · web/index.html</span>
+<pre>&lt;script src="/uniapi/uniapi.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+const app = uniapi.connect({ page: 'main' });
+
+<span class="c">// C++ may call this once the page is ready</span>
+app.expose({
+    greet: (who) =&gt; console.log('hello ' + who),
+});
+
+<span class="c">// call a C++ function</span>
+app.native.add(1, 2).then((sum) =&gt; {
+    console.log(sum);   <span class="c">// 3</span>
+});
+&lt;/script&gt;</pre>
+        </div>
+    </div>
+
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Platform</th><th>Web view</th><th>Status</th><th>Streams use</th></tr></thead>
+            <tbody>
+                <tr><td>Windows 10/11</td><td>WebView2 (Chromium)</td><td><span class="tag done">done</span></td><td>Shared memory with WebView2 Runtime 1.0.1661+, fetch otherwise</td></tr>
+                <tr><td>Linux</td><td>WebKitGTK: <code>webkitgtk-6.0</code> with GTK 4, or <code>webkit2gtk-4.1</code> with GTK 3</td><td><span class="tag done">done</span></td><td>WebKitGTK 2.40+. Shared memory through uniapi's web process extension (<code>uniapi-webext/</code>, shipped next to the executable), fetch otherwise. Zero-copy turns JavaScriptCore's Gigacage hardening off in the web process</td></tr>
+                <tr><td>macOS 14+</td><td>WKWebView (the system's WebKit)</td><td><span class="tag done">done</span></td><td>Always fetch: WKWebView has no public way to give a page outside memory. Fast there: 1920×1080 at about 570 fps (4.7 GB/s, Apple M4)</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- ============================================================ ARCHITECTURE -->
+<section id="architecture">
+    <h2>How it fits together</h2>
+    <div class="prose">
+        <p>The page runs in a separate process from your program. Everything passes between them on one of three paths, and uniapi picks the path for you: you call functions, emit events and publish stream slots, never messages.</p>
+    </div>
+
+    <div class="legend" aria-label="Legend">
+        <span><i class="swatch msg"></i>JSON message, copied between processes</span>
+        <span><i class="swatch shm"></i>Shared memory, mapped into both processes</span>
+        <span><i class="swatch res"></i>Request over the app's own URL scheme</span>
+    </div>
+
+    <figure>
+        <div class="diagram">
+            <svg viewBox="0 0 960 410" role="img" aria-label="Your C++ code talks to uniapi::App, which talks to a platform Backend. Your page script talks to uniapi.js, which talks to the web engine. Between Backend and web engine run three paths: JSON messages, shared memory and requests.">
+                <defs>
+                    <marker id="f1-msg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="head-msg"/></marker>
+                    <marker id="f1-res" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="head-res"/></marker>
+                    <marker id="f1-fg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="head-fg"/></marker>
+                </defs>
+
+                <rect class="frame" x="20" y="16" width="380" height="378" rx="12"/>
+                <text class="t-title" x="40" y="42">Your program</text>
+                <text class="t-sub" x="380" y="42" text-anchor="end">app process · UI thread</text>
+                <rect class="frame" x="560" y="16" width="380" height="378" rx="12"/>
+                <text class="t-title" x="580" y="42">Web view</text>
+                <text class="t-sub" x="920" y="42" text-anchor="end">page process</text>
+
+                <rect class="box" x="50" y="62" width="320" height="60" rx="8"/>
+                <text class="t-title" x="210" y="87" text-anchor="middle">Your C++ code</text>
+                <text class="t-mono t-sub" x="210" y="107" text-anchor="middle">expose · call · on · emit · stream</text>
+
+                <rect class="box" x="50" y="162" width="320" height="60" rx="8"/>
+                <text class="t-head" x="210" y="187" text-anchor="middle">uniapi::App</text>
+                <text class="t-sub" x="210" y="207" text-anchor="middle">protocol, calls, streams, serving files</text>
+
+                <rect class="box" x="50" y="262" width="320" height="112" rx="8"/>
+                <text class="t-head" x="210" y="287" text-anchor="middle">Backend</text>
+                <text class="t-sub" x="66" y="320">WebView2</text>
+                <text class="t-sub" x="66" y="352">WebKitGTK · WKWebView</text>
+
+                <line class="call" x1="210" y1="124" x2="210" y2="160" marker-start="url(#f1-fg)" marker-end="url(#f1-fg)"/>
+                <text class="t-sub" x="222" y="146">C++ API</text>
+                <line class="call" x1="210" y1="224" x2="210" y2="260" marker-start="url(#f1-fg)" marker-end="url(#f1-fg)"/>
+                <text class="t-sub" x="222" y="246">Backend interface</text>
+
+                <rect class="box" x="590" y="62" width="320" height="60" rx="8"/>
+                <text class="t-title" x="750" y="87" text-anchor="middle">Your page script</text>
+                <text class="t-mono t-sub" x="750" y="107" text-anchor="middle">app.native.* · expose · on · emit · stream</text>
+
+                <rect class="box" x="590" y="162" width="320" height="60" rx="8"/>
+                <text class="t-head" x="750" y="187" text-anchor="middle">uniapi.js</text>
+                <text class="t-sub" x="750" y="207" text-anchor="middle">connect(), applies DOM command lists</text>
+
+                <rect class="box" x="590" y="262" width="320" height="112" rx="8"/>
+                <text class="t-head" x="750" y="287" text-anchor="middle">Web engine</text>
+                <text class="t-sub" x="894" y="320" text-anchor="end">Chromium</text>
+                <text class="t-sub" x="894" y="352" text-anchor="end">WebKit</text>
+
+                <line class="call" x1="750" y1="124" x2="750" y2="160" marker-start="url(#f1-fg)" marker-end="url(#f1-fg)"/>
+                <text class="t-sub" x="762" y="146">JS API</text>
+                <line class="call" x1="750" y1="224" x2="750" y2="260" marker-start="url(#f1-fg)" marker-end="url(#f1-fg)"/>
+                <text class="t-sub" x="762" y="246">message channel</text>
+
+                <line class="msg" x1="374" y1="304" x2="586" y2="304" marker-start="url(#f1-msg)" marker-end="url(#f1-msg)"/>
+                <text class="t-msg" x="480" y="296" text-anchor="middle">messages</text>
+                <line class="shm" x1="370" y1="336" x2="590" y2="336"/>
+                <text class="t-shm" x="480" y="328" text-anchor="middle">shared memory</text>
+                <line class="res" x1="374" y1="366" x2="586" y2="366" marker-start="url(#f1-res)" marker-end="url(#f1-res)"/>
+                <text class="t-res" x="480" y="388" text-anchor="middle">requests</text>
+            </svg>
+        </div>
+        <figcaption><strong>Three paths between the processes.</strong> Messages carry calls, results, events and "slot ready" notices as JSON text. Shared memory holds stream slots: the page maps each slot once per connection and then reads it in place. Requests serve your page files, <code>/uniapi/uniapi.js</code>, and stream bytes when shared memory is unavailable.</figcaption>
+    </figure>
+</section>
+
+<!-- ============================================================ LIFECYCLE -->
+<section id="lifecycle">
+    <h2>Connecting a page</h2>
+    <div class="prose">
+        <p>A page connects by calling <code>uniapi.connect()</code>. The app answers with the list of streams and, in shared mode, hands over one shared region per stream slot. Once the page has mapped them all it reports <em>ready</em>, and C++ gets <code>onConnect</code>.</p>
+    </div>
+
+    <figure>
+        <div class="diagram">
+            <svg viewBox="0 0 960 470" role="img" aria-label="Sequence: the page loads its files with requests, sends hello, the app answers welcome and shares one region per slot, the page sends ready and C++ gets onConnect. Calls, events and frames then flow until a navigation, reload or close ends the connection, failing pending calls and firing onDisconnect.">
+                <defs>
+                    <marker id="f2-msg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="head-msg"/></marker>
+                    <marker id="f2-res" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="head-res"/></marker>
+                    <marker id="f2-shm" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="11" markerHeight="11" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="head-shm"/></marker>
+                    <marker id="f2-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="head-muted"/></marker>
+                </defs>
+
+                <rect class="box" x="200" y="16" width="200" height="40" rx="8"/>
+                <text class="t-head" x="300" y="41" text-anchor="middle">uniapi::App (C++)</text>
+                <rect class="box" x="560" y="16" width="200" height="40" rx="8"/>
+                <text class="t-head" x="660" y="41" text-anchor="middle">uniapi.js (page)</text>
+                <line class="life" x1="300" y1="56" x2="300" y2="452"/>
+                <line class="life" x1="660" y1="56" x2="660" y2="420"/>
+
+                <!-- 1 load -->
+                <line class="res" x1="656" y1="96" x2="304" y2="96" marker-end="url(#f2-res)"/>
+                <text class="t-mono t-res" x="480" y="88" text-anchor="middle">GET /index.html, /uniapi/uniapi.js</text>
+                <text class="t-mono" x="280" y="100" text-anchor="end">app.navigate("/index.html")</text>
+                <text class="t-sub" x="680" y="100">the page loads</text>
+
+                <!-- 2 hello -->
+                <line class="msg" x1="656" y1="146" x2="304" y2="146" marker-end="url(#f2-msg)"/>
+                <text class="t-mono t-msg" x="480" y="138" text-anchor="middle">hello {page}</text>
+                <text class="t-mono" x="680" y="144">uniapi.connect({page})</text>
+                <text class="t-sub" x="680" y="161">calls to C++ work from here</text>
+
+                <!-- 3 welcome -->
+                <line class="msg" x1="304" y1="196" x2="656" y2="196" marker-end="url(#f2-msg)"/>
+                <text class="t-mono t-msg" x="480" y="188" text-anchor="middle">welcome {sharedMemory, streams}</text>
+
+                <!-- 4 regions -->
+                <line class="shm" x1="302" y1="246" x2="652" y2="246" marker-end="url(#f2-shm)"/>
+                <text class="t-shm" x="480" y="236" text-anchor="middle">one shared region per stream slot</text>
+                <text class="t-sub" x="680" y="250">shared mode only</text>
+
+                <!-- 5 ready -->
+                <line class="msg" x1="656" y1="296" x2="304" y2="296" marker-end="url(#f2-msg)"/>
+                <text class="t-mono t-msg" x="480" y="288" text-anchor="middle">ready</text>
+                <text class="t-mono" x="680" y="300">app.ready resolves</text>
+                <text class="t-mono t-strong" x="280" y="300" text-anchor="end">onConnect(page)</text>
+
+                <!-- connected band -->
+                <rect class="band" x="300" y="322" width="360" height="56" rx="6"/>
+                <text x="480" y="346" text-anchor="middle">connected</text>
+                <text class="t-sub" x="480" y="364" text-anchor="middle">calls, events and frames in both directions</text>
+                <text class="t-sub" x="280" y="354" text-anchor="end">call(), emit(), publish() work</text>
+
+                <!-- 6 end -->
+                <line class="end" x1="652" y1="412" x2="668" y2="428"/>
+                <line class="end" x1="668" y1="412" x2="652" y2="428"/>
+                <text class="t-sub" x="680" y="418">navigation, reload</text>
+                <text class="t-sub" x="680" y="434">or window closed</text>
+                <line class="ret" x1="648" y1="420" x2="304" y2="420" marker-end="url(#f2-muted)"/>
+                <text class="t-sub" x="480" y="412" text-anchor="middle">the engine reports it</text>
+                <text class="t-sub" x="280" y="416" text-anchor="end">pending calls fail: "the page closed"</text>
+                <text class="t-mono t-strong" x="280" y="436" text-anchor="end">onDisconnect(page)</text>
+            </svg>
+        </div>
+        <figcaption><strong>One connection per page load.</strong> Calls and events go both ways from <code>onConnect</code> on: ones the page makes earlier wait for it, and C++ can call the page, emit events and publish frames only after it. Each navigation or reload ends the connection, and the next page starts a new one.</figcaption>
+    </figure>
+
+    <div class="prose">
+        <p>Two rules follow from this sequence:</p>
+        <ul>
+            <li><strong>In the page:</strong> register <code>expose</code>, <code>on</code> and <code>stream</code> handlers right after <code>connect()</code>, in the same task. <em>ready</em> can't be sent before your script yields, so nothing arrives before the handlers exist.</li>
+            <li><strong>In C++:</strong> start per-page work in <code>onConnect</code> and stop it in <code>onDisconnect</code>. The <code>page</code> argument is the name the page passed to <code>connect()</code>, which tells you which of your pages connected.</li>
+        </ul>
+    </div>
+</section>
+
+<!-- ============================================================ CALLS -->
+<section id="calls">
+    <h2>Calls</h2>
+    <div class="prose">
+        <p>Each side registers functions under a name, and the other side calls them by name. Each call carries an <code>id</code>, so any number of calls can be in flight at once and answers may arrive in any order. Each side numbers its own calls.</p>
+    </div>
+
+    <figure>
+        <div class="diagram">
+            <svg viewBox="0 0 960 646" role="img" aria-label="Two call sequences. JavaScript calls C++: app.native.add(1, 2) becomes a call message, App converts the JSON arguments and runs the C++ function, its return value goes back in a result message and the promise resolves. C++ calls JavaScript: app.call sends a call message, uniapi.js runs the exposed function, its value goes back in a result message and the C++ done callback receives a Result.">
+                <defs>
+                    <marker id="f3-msg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="head-msg"/></marker>
+                    <marker id="f3-fg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="head-fg"/></marker>
+                    <marker id="f3-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="head-muted"/></marker>
+                </defs>
+
+                <rect class="box" x="10" y="16" width="160" height="40" rx="8"/>
+                <text class="t-title" x="90" y="41" text-anchor="middle">Your C++</text>
+                <rect class="box" x="250" y="16" width="160" height="40" rx="8"/>
+                <text class="t-head" x="330" y="41" text-anchor="middle">uniapi::App</text>
+                <rect class="box" x="550" y="16" width="160" height="40" rx="8"/>
+                <text class="t-head" x="630" y="41" text-anchor="middle">uniapi.js</text>
+                <rect class="box" x="790" y="16" width="160" height="40" rx="8"/>
+                <text class="t-title" x="870" y="41" text-anchor="middle">Your page script</text>
+
+                <rect class="band" x="10" y="70" width="940" height="26" rx="4"/>
+                <rect class="band" x="10" y="356" width="940" height="26" rx="4"/>
+                <line class="life" x1="90" y1="56" x2="90" y2="634"/>
+                <line class="life" x1="330" y1="56" x2="330" y2="634"/>
+                <line class="life" x1="630" y1="56" x2="630" y2="634"/>
+                <line class="life" x1="870" y1="56" x2="870" y2="634"/>
+                <text class="t-title" x="480" y="88" text-anchor="middle">JavaScript calls C++</text>
+                <text class="t-title" x="480" y="374" text-anchor="middle">C++ calls JavaScript</text>
+
+                <!-- A -->
+                <line class="call" x1="866" y1="128" x2="634" y2="128" marker-end="url(#f3-fg)"/>
+                <text class="t-mono" x="750" y="120" text-anchor="middle">await app.native.add(1, 2)</text>
+
+                <line class="msg" x1="626" y1="168" x2="334" y2="168" marker-end="url(#f3-msg)"/>
+                <text class="t-mono t-msg" x="480" y="160" text-anchor="middle">call {id:7, fn:"add", args:[1,2]}</text>
+
+                <line class="call" x1="326" y1="208" x2="94" y2="208" marker-end="url(#f3-fg)"/>
+                <text class="t-mono" x="210" y="200" text-anchor="middle">add(1, 2)</text>
+                <text class="t-sub" x="210" y="226" text-anchor="middle">JSON converted to int, int</text>
+
+                <line class="ret" x1="94" y1="256" x2="326" y2="256" marker-end="url(#f3-muted)"/>
+                <text class="t-mono" x="210" y="248" text-anchor="middle">return 3</text>
+                <text class="t-sub" x="210" y="274" text-anchor="middle">or reply.resolve(3) later</text>
+
+                <line class="msg" x1="334" y1="298" x2="626" y2="298" marker-end="url(#f3-msg)"/>
+                <text class="t-mono t-msg" x="480" y="290" text-anchor="middle">result {id:7, ok:true, value:3}</text>
+
+                <line class="ret" x1="634" y1="334" x2="866" y2="334" marker-end="url(#f3-muted)"/>
+                <text class="t-sub" x="750" y="326" text-anchor="middle">the promise resolves to 3</text>
+
+                <!-- B -->
+                <line class="call" x1="94" y1="416" x2="326" y2="416" marker-end="url(#f3-fg)"/>
+                <text class="t-mono" x="210" y="408" text-anchor="middle">app.call("confirm", args, done)</text>
+
+                <line class="msg" x1="334" y1="456" x2="626" y2="456" marker-end="url(#f3-msg)"/>
+                <text class="t-mono t-msg" x="480" y="448" text-anchor="middle">call {id:12, fn:"confirm", args:[…]}</text>
+
+                <line class="call" x1="634" y1="496" x2="866" y2="496" marker-end="url(#f3-fg)"/>
+                <text class="t-mono" x="750" y="488" text-anchor="middle">confirm("Overwrite?")</text>
+                <text class="t-sub" x="750" y="514" text-anchor="middle">may be async</text>
+
+                <line class="ret" x1="866" y1="552" x2="634" y2="552" marker-end="url(#f3-muted)"/>
+                <text class="t-mono" x="750" y="544" text-anchor="middle">return true</text>
+
+                <line class="msg" x1="626" y1="588" x2="334" y2="588" marker-end="url(#f3-msg)"/>
+                <text class="t-mono t-msg" x="480" y="580" text-anchor="middle">result {id:12, ok:true, value:true}</text>
+
+                <line class="ret" x1="326" y1="622" x2="94" y2="622" marker-end="url(#f3-muted)"/>
+                <text class="t-mono" x="210" y="614" text-anchor="middle">done(Result{ok, value})</text>
+            </svg>
+        </div>
+        <figcaption><strong>The same round trip in both directions.</strong> A thrown exception travels back the same way, as <code>ok:false</code> with the message: a rejected Promise in JavaScript, <code>Result::error</code> in C++.</figcaption>
+    </figure>
+
+    <div class="sub">
+        <h3>Exposing C++ functions</h3>
+        <div class="prose">
+            <p><code>App::expose</code> reads your function's parameter types. Each JavaScript argument is converted to the matching parameter, and the return value is converted back to JSON. Any type nlohmann/json can convert works: numbers, <code>bool</code>, <code>std::string</code>, <code>std::vector</code>, <code>std::map</code>, <code>uniapi::json</code> itself, and your own types with <code>to_json</code>/<code>from_json</code>. A <code>void</code> function resolves with <code>null</code>.</p>
+        </div>
+<pre>app.expose("add", [](int a, int b) { return a + b; });
+app.expose("setStats", [&amp;](bool on) { overlay.Show(on); });
+app.expose("getState", [&amp;] { return uniapi::json{{"mode", mode}, {"fps", fps}}; });
+
+<span class="c">// Throwing rejects the JavaScript promise with e.what()</span>
+app.expose("open", [](std::string path) {
+    if (path.empty()) throw std::invalid_argument("choose a file first");
+    return Load(path);
+});
+
+<span class="c">// Work that finishes later: take the arguments as JSON and answer through the Reply,</span>
+<span class="c">// from any thread, exactly once.</span>
+app.expose("hash", [](const uniapi::json&amp; args, uniapi::Reply reply) {
+    std::thread([path = args.at(0).get&lt;std::string&gt;(), reply] {
+        reply.resolve(HashFile(path));
+    }).detach();
+});</pre>
+        <div class="prose">
+            <p>Too few arguments reject the call with <code>expected 2 argument(s), got 1</code>. A value of the wrong type rejects it with nlohmann/json's message after the argument's number, for example <code>argument 1: type must be number, but is string</code>. Two mistakes are let through by default: an extra argument is ignored, and so is an object field the parameter's type hasn't (a misspelled <code>{volum: 3}</code> leaves <code>volume</code> as it was). <code>AppOptions::strictCalls</code> rejects those too: <code>expected 2 argument(s), got 3</code>, <code>argument 1: unknown field "volum"</code>, deeper down <code>unknown field "channels[0].pan"</code>. Fields are checked for types that convert both ways (<code>to_json</code> and <code>from_json</code>, as <code>NLOHMANN_DEFINE_TYPE_*</code> gives): the argument is converted back, and a key that doesn't come back is unknown. Maps, <code>json</code> parameters and binary data are taken as they come; handlers that take the JSON themselves check what they like.</p>
+        </div>
+    </div>
+
+    <div class="sub">
+        <h3>Calling C++ from JavaScript</h3>
+<pre>const sum = await app.native.add(1, 2);        <span class="c">// any name works; C++ decides if it exists</span>
+const same = await app.call('add', 1, 2);       <span class="c">// the same call, with the name as a string</span>
+
+try {
+    await app.native.open('');
+} catch (err) {
+    console.log(err.message);                   <span class="c">// "choose a file first"</span>
+}</pre>
+    </div>
+
+    <div class="sub">
+        <h3>Calling JavaScript from C++</h3>
+<pre><span class="c">// page</span>
+app.expose({
+    confirm: (text) =&gt; window.confirm(text),
+    pickColor: async () =&gt; await openColorPicker(),   <span class="c">// promises are awaited</span>
+});
+
+<span class="c">// C++, after onConnect</span>
+app.call("confirm", uniapi::json::array({"Overwrite?"}), [](const uniapi::Result&amp; r) {
+    if (r.ok &amp;&amp; r.value.get&lt;bool&gt;()) Overwrite();
+    else if (!r.ok) Log(r.error);
+});
+app.call("refresh");   <span class="c">// no arguments, result ignored</span></pre>
+        <div class="prose">
+            <p><code>done</code> always runs exactly once, on the UI thread: with the value, with the function's error, or with <code>no page is connected</code> or <code>the page closed</code>. A single non-array <code>args</code> value is sent as one argument.</p>
+        </div>
+    </div>
+</section>
+
+<!-- ============================================================ EVENTS -->
+<section id="events">
+    <h2>Events</h2>
+    <div class="prose">
+        <p>Events carry one JSON value and expect no answer. Use them for notifications and progress; use a call when you need a result or an error.</p>
+    </div>
+<pre><span class="c">// C++</span>
+app.on("draw-ms", [&amp;](const uniapi::json&amp; ms) { drawTime = ms.get&lt;double&gt;(); });
+app.emit("progress", {{"done", 3}, {"total", 10}});
+
+<span class="c">// page</span>
+app.on('progress', ({ done, total }) =&gt; bar.value = done / total);
+app.emit('draw-ms', 4.2);</pre>
+    <div class="prose">
+        <p>In C++, <code>on</code> keeps one handler per event name; registering again replaces it, and <code>off(name)</code> takes it away. In JavaScript, <code>on</code> adds handlers, and an exception in one is logged without stopping the others; <code>app.off(name, handler)</code> stops one, <code>app.off(name)</code> all of them. Events nobody listens for are dropped, and so is <code>App::emit</code> while no page is connected. Functions are taken back the same way: <code>unexpose(name)</code> in C++, <code>app.unexpose(name)</code> in the page; a call to one then fails as a call to a name never exposed does.</p>
+    </div>
+</section>
+
+<!-- ============================================================ BYTES -->
+<section id="bytes">
+    <h2>Binary data in calls and events</h2>
+    <div class="prose">
+        <p>Streams carry a steady flow of frames from C++ to the page. For one-off binary data, in either direction, put it straight into a call, a result or an event. From the page (a dropped file, a canvas capture, recorded audio): <code>ArrayBuffer</code>, any typed array, <code>DataView</code>, or <code>Blob</code>/<code>File</code>, anywhere in the arguments, an event's data, or what an exposed JavaScript function returns. C++ receives each as a <a href="#ref-bytes"><code>uniapi::Bytes</code></a>.</p>
+    </div>
+<pre><span class="c">// page</span>
+const sum = await app.native.checksum(new Uint8Array(buffer));
+await app.native.thumbnail(file, 200);                     <span class="c">// a File from an &lt;input&gt; or a drop</span>
+app.emit('dropped', { name: file.name, data: file });
+
+<span class="c">// C++</span>
+app.expose("checksum", [](const uniapi::Bytes&amp; data) { return Crc32(data.data(), data.size()); });
+app.expose("thumbnail", [](uniapi::Bytes image, int width) { return MakeThumbnail(image, width); });
+app.on("dropped", [&amp;](const uniapi::json&amp; d) {
+    uniapi::Bytes data = d.at("data").get&lt;uniapi::Bytes&gt;();   <span class="c">// keep it as long as you like</span>
+    std::thread([data] { Import(data); }).detach();
+});</pre>
+    <div class="prose">
+        <p>Binary values don't go into the JSON. <code>uniapi.js</code> POSTs each one to the app, puts a small placeholder in its place, and sends the call or event once the data has arrived. Nothing is base64-encoded. Messages still reach C++ in the order the page sent them, even when one waits for its data. Measured on Linux: about 570 MB/s for large data (8 MB per call in ~14 ms), and ~0.4 ms per call for small data. On macOS the data must be a buffer, not a Blob, when it reaches the request: WKWebView delivers a Blob POST body as nothing, so <code>uniapi.js</code> reads Blobs into ArrayBuffers first (WebKitGTK needs the same).</p>
+        <p>A typed parameter takes the data directly. A <code>(const json&amp; args, Reply)</code> handler, an event handler or a <code>call()</code>'s <code>done</code> callback gets it with <code>get&lt;uniapi::Bytes&gt;()</code>: until the call is answered, or until the handler returns. A <code>Bytes</code> itself stays valid as long as you keep it; it is a shared, read-only buffer, cheap to copy and safe to pass to another thread. The placeholders are random tokens, so page data can't name another call's bytes.</p>
+        <p>The other way, put a <code>Bytes</code> in any JSON C++ sends: a return value, <code>Reply::resolve</code>, <code>App::call</code> arguments, <code>App::emit</code> data, nested anywhere. The page receives a <code>Uint8Array</code> in its place:</p>
+    </div>
+<pre><span class="c">// C++</span>
+app.expose("thumbnail", [](uniapi::Bytes image, int width) {
+    return uniapi::Bytes(MakeThumbnail(image, width));        <span class="c">// a std::vector&lt;uint8_t&gt;</span>
+});
+app.emit("snapshot", {{"name", "frame.png"}, {"png", uniapi::Bytes(png.data(), png.size())}});
+
+<span class="c">// page</span>
+const small = await app.native.thumbnail(file, 200);           <span class="c">// a Uint8Array</span>
+img.src = URL.createObjectURL(new Blob([small], { type: 'image/png' }));</pre>
+    <div class="prose">
+        <p>C++ keeps each <code>Bytes</code> under a random token, and the page fetches it once before handing the message to your code; messages after it wait, so the order is kept. Data the page never fetches is dropped when the page goes away, or after a minute.</p>
+    </div>
+</section>
+
+<!-- ============================================================ STREAMS -->
+<section id="streams">
+    <h2>Streams</h2>
+    <div class="prose">
+        <p>A stream is a fixed pool of equally sized <em>slots</em>. C++ takes a free slot, fills it, and publishes it; the page's handler receives the bytes; when the handler is done the page hands the slot back. The pool is the backpressure: when every slot is with the page, <code>acquire()</code> fails, and you drop the frame or wait for <code>onSlotFreed</code>.</p>
+    </div>
+
+    <figure>
+        <div class="diagram">
+            <svg viewBox="0 0 960 236" role="img" aria-label="Slot states. Free becomes Writing with acquire(). Writing becomes With page with publish(), or returns to Free if publish fails. With page returns to Free when the page sends release, which increments delivered and fires onSlotFreed if acquire had failed.">
+                <defs>
+                    <marker id="f4-fg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="head-fg"/></marker>
+                    <marker id="f4-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="head-muted"/></marker>
+                    <marker id="f4-msg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="head-msg"/></marker>
+                </defs>
+
+                <rect class="box" x="60" y="50" width="180" height="60" rx="30"/>
+                <text class="t-title" x="150" y="76" text-anchor="middle">Free</text>
+                <text class="t-sub" x="150" y="94" text-anchor="middle">ready to acquire</text>
+
+                <rect class="box" x="390" y="50" width="180" height="60" rx="30"/>
+                <text class="t-title" x="480" y="76" text-anchor="middle">Writing</text>
+                <text class="t-sub" x="480" y="94" text-anchor="middle">C++ fills slot.data</text>
+
+                <rect class="box-shm" x="720" y="50" width="180" height="60" rx="30"/>
+                <text class="t-title" x="810" y="76" text-anchor="middle">With page</text>
+                <text class="t-sub" x="810" y="94" text-anchor="middle">page reads; C++ hands off</text>
+
+                <line class="call" x1="242" y1="68" x2="388" y2="68" marker-end="url(#f4-fg)"/>
+                <text class="t-mono" x="315" y="60" text-anchor="middle">acquire()</text>
+                <line class="ret" x1="388" y1="94" x2="242" y2="94" marker-end="url(#f4-muted)"/>
+                <text class="t-sub" x="315" y="116" text-anchor="middle">publish() fails</text>
+
+                <line class="call" x1="572" y1="80" x2="718" y2="80" marker-end="url(#f4-fg)"/>
+                <text class="t-mono" x="645" y="72" text-anchor="middle">publish()</text>
+                <text class="t-sub" x="645" y="100" text-anchor="middle">frame message</text>
+
+                <path class="msg" d="M810,112 V188 Q810,198 800,198 H160 Q150,198 150,188 V114" marker-end="url(#f4-msg)"/>
+                <text class="t-mono t-msg" x="480" y="190" text-anchor="middle">release {stream, id, slot}</text>
+                <text class="t-sub" x="480" y="220" text-anchor="middle">delivered() goes up by one; onSlotFreed fires if acquire() had failed</text>
+            </svg>
+        </div>
+        <figcaption><strong>Each slot cycles through three states.</strong> A slot goes back to Free when the page's handler returns (or its promise settles), and also when the page goes away. While a slot is With page, C++ must not write to it: in shared mode the page is reading that very memory.</figcaption>
+    </figure>
+
+<pre>const int W = 1920, H = 1080;
+uniapi::Stream&amp; frames = app.stream("frames", W * H * 4, <span class="c">/*slots=*/</span>3);
+
+void SendFrame() {
+    uniapi::Stream::Slot slot;
+    if (!frames.acquire(slot)) return;                 <span class="c">// every slot is busy: drop this frame</span>
+    Render(slot.data, W, H);
+    frames.publish(slot, W * H * 4, {{"width", W}, {"height", H}});
+}
+
+app.every(std::chrono::milliseconds(16), SendFrame);   <span class="c">// ~60 fps, or:</span>
+frames.onSlotFreed = SendFrame;                        <span class="c">// as fast as the page keeps up</span></pre>
+<pre><span class="c">// page</span>
+app.stream('frames', (bytes, meta) =&gt; {
+    const image = new ImageData(new Uint8ClampedArray(bytes), meta.width, meta.height);
+    ctx.putImageData(image, 0, 0);
+});</pre>
+
+    <div class="note"><strong><code>bytes</code> is valid only until the handler returns</strong> or the promise it returns settles. In shared mode it is a view of the slot itself, which C++ will refill; copy anything you keep with <code>bytes.slice()</code>.</div>
+
+    <div class="sub">
+        <h3>Shared memory or fetch</h3>
+        <div class="prose">
+            <p>Where the platform supports it, slots live in shared memory, and the page reads them in place. Otherwise the page fetches each published slot from the app over the app's URL scheme: still no base64, but the engine copies the bytes on the way. The C++ and JavaScript code is the same in both modes.</p>
+        </div>
+        <figure>
+            <div class="diagram">
+                <svg viewBox="0 0 960 272" role="img" aria-label="Shared mode: C++ writes the slot in shared memory, a frame message goes to the page and the handler views the slot in place, then releases it. Fetch mode adds a step: the page fetches the slot with GET /uniapi/stream/name/slot, and the handler gets a copy.">
+                    <defs>
+                        <marker id="f5-fg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="head-fg"/></marker>
+                        <marker id="f5-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="head-muted"/></marker>
+                    </defs>
+
+                    <text class="t-title t-shm" x="20" y="28">Shared memory</text>
+                    <rect class="box-shm" x="20" y="44" width="160" height="60" rx="8"/>
+                    <text class="t-title" x="100" y="70" text-anchor="middle">C++ writes slot</text>
+                    <text class="t-sub" x="100" y="88" text-anchor="middle">in the shared region</text>
+                    <rect class="box-msg" x="212" y="44" width="160" height="60" rx="8"/>
+                    <text class="t-title" x="292" y="70" text-anchor="middle">frame message</text>
+                    <text class="t-sub" x="292" y="88" text-anchor="middle">stream, slot, size, meta</text>
+                    <line class="ret" x1="374" y1="74" x2="594" y2="74" marker-end="url(#f5-muted)"/>
+                    <text class="t-sub" x="484" y="66" text-anchor="middle">nothing to fetch</text>
+                    <rect class="box-shm" x="596" y="44" width="160" height="60" rx="8"/>
+                    <text class="t-mono t-strong" x="676" y="70" text-anchor="middle">handler(bytes)</text>
+                    <text class="t-sub" x="676" y="88" text-anchor="middle">reads the slot in place</text>
+                    <rect class="box" x="788" y="44" width="160" height="60" rx="8"/>
+                    <text class="t-title" x="868" y="70" text-anchor="middle">release</text>
+                    <text class="t-sub" x="868" y="88" text-anchor="middle">the slot is Free again</text>
+                    <line class="call" x1="182" y1="74" x2="210" y2="74" marker-end="url(#f5-fg)"/>
+                    <line class="call" x1="758" y1="74" x2="786" y2="74" marker-end="url(#f5-fg)"/>
+
+                    <text class="t-title t-res" x="20" y="158">Fetch fallback</text>
+                    <rect class="box" x="20" y="174" width="160" height="60" rx="8"/>
+                    <text class="t-title" x="100" y="200" text-anchor="middle">C++ writes slot</text>
+                    <text class="t-sub" x="100" y="218" text-anchor="middle">in app memory</text>
+                    <rect class="box-msg" x="212" y="174" width="160" height="60" rx="8"/>
+                    <text class="t-title" x="292" y="200" text-anchor="middle">frame message</text>
+                    <text class="t-sub" x="292" y="218" text-anchor="middle">stream, slot, size, meta</text>
+                    <rect class="box-res" x="404" y="174" width="160" height="60" rx="8"/>
+                    <text class="t-title" x="484" y="200" text-anchor="middle">page fetches bytes</text>
+                    <text class="t-mono t-res" x="484" y="218" text-anchor="middle">GET /uniapi/stream/…</text>
+                    <rect class="box" x="596" y="174" width="160" height="60" rx="8"/>
+                    <text class="t-mono t-strong" x="676" y="200" text-anchor="middle">handler(bytes)</text>
+                    <text class="t-sub" x="676" y="218" text-anchor="middle">receives a copy</text>
+                    <rect class="box" x="788" y="174" width="160" height="60" rx="8"/>
+                    <text class="t-title" x="868" y="200" text-anchor="middle">release</text>
+                    <text class="t-sub" x="868" y="218" text-anchor="middle">the slot is Free again</text>
+                    <line class="call" x1="182" y1="204" x2="210" y2="204" marker-end="url(#f5-fg)"/>
+                    <line class="call" x1="374" y1="204" x2="402" y2="204" marker-end="url(#f5-fg)"/>
+                    <line class="call" x1="566" y1="204" x2="594" y2="204" marker-end="url(#f5-fg)"/>
+                    <line class="call" x1="758" y1="204" x2="786" y2="204" marker-end="url(#f5-fg)"/>
+                    <text class="t-sub t-res" x="484" y="256" text-anchor="middle">1–3 copies inside the engine</text>
+                </svg>
+            </div>
+            <figcaption><strong>The fetch fallback adds one request and its copies.</strong> Measured with the demo on Windows: 1920×1080 frames at about 250 fps with shared memory and about 15 fps with fetch (about 140 MB/s). Fetch is fine for UI-sized data such as a 1 MB image (about 7 ms) and too slow for full-HD video. On macOS, which only fetches, it is far faster: about 570 fps at 1920×1080 (4.7 GB/s on an Apple M4), as the app hands WebKit each slot without a copy.</figcaption>
+        </figure>
+        <div class="prose">
+            <p>The mode is chosen once, when the web view starts. Shared memory is used when <code>AppOptions::sharedMemory</code> is true (the default) and the platform supports it (Windows and Linux; never macOS). Check it with <code>App::sharedMemory()</code> or <code>Stream::shared()</code> in C++, and <code>app.capabilities.sharedMemory</code> in the page.</p>
+            <p>Shared memory is used only when it really works. If a page's shared regions don't all arrive within <code>regionTimeout</code> (3 s by default), the page stops waiting and fetches instead of hanging: every stream when it happens while connecting, or just one stream that was created or replaced later. The API stays the same, and <code>sharedMemory()</code>, <code>shared()</code> and <code>capabilities.sharedMemory</code> report the mode actually in use.</p>
+        </div>
+    </div>
+
+    <div class="sub">
+        <h3>Rules</h3>
+        <div class="prose">
+            <ul>
+                <li>Create streams before or after <code>run()</code>; memory is allocated once the web view exists. Slot memory is allocated up front, so <code>slotSize × slotCount</code> is the stream's footprint. If that memory can't be had, <code>stream()</code> throws <code>std::bad_alloc</code>; for a stream created before <code>run()</code> the failure is printed to stderr and its <code>acquire()</code> returns false (the page still loads).</li>
+                <li>Calling <code>stream()</code> again with the same name replaces the stream, for example after a resolution change. The old <code>Stream&amp;</code> becomes invalid, and a connected page is told about the new one at once.</li>
+                <li>Names may not be empty or contain <code>/ ? # " \</code> or a NUL character, and <code>uniapi.dom</code> is taken by the library; <code>stream()</code> throws <code>std::invalid_argument</code> for these. Slot count is 1 to 64.</li>
+                <li>The page calls a stream's handler in publish order, in both modes. A handler that returns a promise keeps its slot until the promise settles, and the next frame's handler can start meanwhile.</li>
+                <li>With more than one slot, the page may be handling slot 2 while C++ fills slot 0. More slots smooth out jitter; fewer keep latency low.</li>
+                <li>Streams go from C++ to the page only. Send data the other way as call arguments.</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<!-- ============================================================ DOM -->
+<section id="dom">
+    <h2>DOM command lists</h2>
+    <div class="prose">
+        <p>Page elements live in the web view's process, so C++ can't touch them directly. Instead it writes a compact binary list of commands, which <code>uniapi.js</code> applies in one go, so the page restyles and repaints once per list. Lists travel through the built-in stream <code>uniapi.dom</code> (two slots of 64 KB), so they use shared memory where streams do.</p>
+    </div>
+<pre>app.sendDom([](uniapi::DomCommandWriter&amp; dom) {
+    dom.Bind(1, "#status");                        <span class="c">// existing element, now ID 1</span>
+    dom.SetText(1, "Rendering…");
+    dom.Create(2, "li");                           <span class="c">// new element, ID 2</span>
+    dom.SetText(2, "frame 120 done");
+    dom.ToggleClass(2, "ok", true);
+    dom.Append(1, 2);
+});</pre>
+    <div class="prose">
+        <p>Element IDs are numbers that C++ chooses. <code>Create</code> or <code>Bind</code> assigns one, and later commands, in this list or later lists, refer to it. ID 0 (<code>DomCommandWriter::kBody</code>) is always <code>document.body</code>.</p>
+    </div>
+
+    <figure>
+        <div class="diagram">
+            <svg viewBox="0 0 960 150" role="img" aria-label="Bytes of a list with two commands. SetText(1, &quot;Hi&quot;) is opcode 06, the id 1 as four little-endian bytes, the length 2 as four bytes, then the UTF-8 bytes 48 69. Append(kBody, 1) is opcode 03, parent 0 as four bytes and child 1 as four bytes.">
+                <text class="t-head" x="271" y="36" text-anchor="middle">SetText(1, "Hi")</text>
+                <text class="t-head" x="711" y="36" text-anchor="middle">Append(kBody, 1)</text>
+
+                <rect class="cell-op" x="40" y="52" width="42" height="36"/>
+                <text class="t-hex" x="61" y="75" text-anchor="middle">06</text>
+                <rect class="cell" x="82" y="52" width="42" height="36"/><text class="t-hex" x="103" y="75" text-anchor="middle">01</text>
+                <rect class="cell" x="124" y="52" width="42" height="36"/><text class="t-hex" x="145" y="75" text-anchor="middle">00</text>
+                <rect class="cell" x="166" y="52" width="42" height="36"/><text class="t-hex" x="187" y="75" text-anchor="middle">00</text>
+                <rect class="cell" x="208" y="52" width="42" height="36"/><text class="t-hex" x="229" y="75" text-anchor="middle">00</text>
+                <rect class="cell" x="250" y="52" width="42" height="36"/><text class="t-hex" x="271" y="75" text-anchor="middle">02</text>
+                <rect class="cell" x="292" y="52" width="42" height="36"/><text class="t-hex" x="313" y="75" text-anchor="middle">00</text>
+                <rect class="cell" x="334" y="52" width="42" height="36"/><text class="t-hex" x="355" y="75" text-anchor="middle">00</text>
+                <rect class="cell" x="376" y="52" width="42" height="36"/><text class="t-hex" x="397" y="75" text-anchor="middle">00</text>
+                <rect class="cell-str" x="418" y="52" width="42" height="36"/><text class="t-hex" x="439" y="75" text-anchor="middle">48</text>
+                <rect class="cell-str" x="460" y="52" width="42" height="36"/><text class="t-hex" x="481" y="75" text-anchor="middle">69</text>
+
+                <rect class="cell-op" x="522" y="52" width="42" height="36"/>
+                <text class="t-hex" x="543" y="75" text-anchor="middle">03</text>
+                <rect class="cell" x="564" y="52" width="42" height="36"/><text class="t-hex" x="585" y="75" text-anchor="middle">00</text>
+                <rect class="cell" x="606" y="52" width="42" height="36"/><text class="t-hex" x="627" y="75" text-anchor="middle">00</text>
+                <rect class="cell" x="648" y="52" width="42" height="36"/><text class="t-hex" x="669" y="75" text-anchor="middle">00</text>
+                <rect class="cell" x="690" y="52" width="42" height="36"/><text class="t-hex" x="711" y="75" text-anchor="middle">00</text>
+                <rect class="cell" x="732" y="52" width="42" height="36"/><text class="t-hex" x="753" y="75" text-anchor="middle">01</text>
+                <rect class="cell" x="774" y="52" width="42" height="36"/><text class="t-hex" x="795" y="75" text-anchor="middle">00</text>
+                <rect class="cell" x="816" y="52" width="42" height="36"/><text class="t-hex" x="837" y="75" text-anchor="middle">00</text>
+                <rect class="cell" x="858" y="52" width="42" height="36"/><text class="t-hex" x="879" y="75" text-anchor="middle">00</text>
+
+                <path class="bracket" d="M43,96 V102 H79 V96"/>
+                <path class="bracket" d="M85,96 V102 H247 V96"/>
+                <path class="bracket" d="M253,96 V102 H415 V96"/>
+                <path class="bracket" d="M421,96 V102 H499 V96"/>
+                <path class="bracket" d="M525,96 V102 H561 V96"/>
+                <path class="bracket" d="M567,96 V102 H729 V96"/>
+                <path class="bracket" d="M735,96 V102 H897 V96"/>
+                <text class="t-sub" x="61" y="122" text-anchor="middle">op</text>
+                <text class="t-sub" x="166" y="122" text-anchor="middle">id · u32</text>
+                <text class="t-sub" x="334" y="122" text-anchor="middle">length · u32</text>
+                <text class="t-sub" x="460" y="122" text-anchor="middle">UTF-8</text>
+                <text class="t-sub" x="543" y="122" text-anchor="middle">op</text>
+                <text class="t-sub" x="648" y="122" text-anchor="middle">parent · u32</text>
+                <text class="t-sub" x="816" y="122" text-anchor="middle">child · u32</text>
+            </svg>
+        </div>
+        <figcaption><strong>A list is commands back to back.</strong> Each command is an opcode byte followed by its fields; numbers are little-endian, strings are a length and UTF-8 bytes, and booleans are one byte. A command that doesn't fit in the slot is not written at all, so a list is always valid up to its end.</figcaption>
+    </figure>
+
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Op</th><th>Command</th><th>Effect in the page</th></tr></thead>
+            <tbody>
+                <tr><td class="num">1</td><td class="k">Bind(id, selector)</td><td>The first element matching a CSS selector gets the ID</td></tr>
+                <tr><td class="num">2</td><td class="k">Create(id, tag)</td><td><code>document.createElement(tag)</code>, detached until appended</td></tr>
+                <tr><td class="num">3</td><td class="k">Append(parent, child)</td><td>Moves or inserts <code>child</code> as the last child of <code>parent</code></td></tr>
+                <tr><td class="num">4</td><td class="k">Remove(id)</td><td>Detaches the element and forgets the ID</td></tr>
+                <tr><td class="num">5</td><td class="k">Clear(id)</td><td>Removes all children</td></tr>
+                <tr><td class="num">6</td><td class="k">SetText(id, text)</td><td>Sets <code>textContent</code></td></tr>
+                <tr><td class="num">7</td><td class="k">SetAttribute(id, name, value)</td><td><code>setAttribute(name, value)</code></td></tr>
+                <tr><td class="num">8</td><td class="k">SetStyle(id, property, value)</td><td><code>style.setProperty(property, value)</code>, CSS names such as <code>background-color</code></td></tr>
+                <tr><td class="num">9</td><td class="k">ToggleClass(id, name, on)</td><td><code>classList.toggle(name, on)</code></td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="prose">
+        <p>Commands never parse HTML, but C++ is fully trusted: an attribute such as <code>onclick</code> runs script. If a command fails in the page (an unknown ID, a selector that matches nothing), the rest of that list is skipped and the error is logged to the page's console.</p>
+    </div>
+</section>
+
+<!-- ============================================================ THREADS -->
+<section id="threads">
+    <h2>Threads and the event loop</h2>
+    <div class="prose">
+        <p><code>App</code>, <code>Window</code> and <code>Stream</code> belong to the thread that created the App: the UI thread, where <code>run()</code> runs the event loop and every handler, timer and callback runs. GTK, Cocoa and WebView2 work only from there.</p>
+        <ul>
+            <li><strong>Methods that only do something work from any thread.</strong> <code>emit</code>, <code>call</code>, <code>setTitle</code>, <code>setSize</code>, <code>show</code>, <code>hide</code>, <code>close</code>, <code>navigate</code>, <code>expose</code>, <code>on</code>, <code>quit</code>, <code>cancel</code>, <code>serve</code>, <code>setPosition</code>, <code>minimize</code>, <code>maximize</code>, <code>restore</code>, <code>setAlwaysOnTop</code>, <code>setPlacement</code>, <code>setClipboardText</code>, <code>clipboardText</code>, <code>Stream::removeWindow</code>: called elsewhere, they post themselves to the UI thread and return at once, so they happen a moment later, in order with other posted work. <code>call</code>'s <code>done</code> runs on the UI thread. (<code>setAlwaysOnTop</code> and <code>setClipboardText</code> then return true: asked.)</li>
+            <li><strong>Methods that answer something or must act at once throw elsewhere.</strong> <code>connected</code>, <code>page</code>, <code>sharedMemory</code>, <code>visible</code>, <code>fullscreen</code>, <code>titleBar</code>, <code>size</code>, <code>position</code>, <code>minimized</code>, <code>maximized</code>, <code>alwaysOnTop</code>, <code>placement</code>, <code>setIcon</code>, <code>stream</code>, <code>sendDom</code>, <code>openWindow</code>, <code>windows</code>, <code>sender</code>, <code>every</code> (and so <code>co_await sleep</code>), the dialogs, <code>run</code>, and <code>Stream::acquire</code>, <code>publish</code>, <code>addWindow</code>, <code>windows</code>, <code>delivered</code>, <code>shared</code> throw <code>std::logic_error</code>, naming themselves: from another thread they would race with the UI thread, and crash, hang or be lost depending on the platform. A worker may fill a stream slot's memory between <code>acquire</code> and <code>publish</code>, both on the UI thread.</li>
+            <li><strong>Safe anywhere:</strong> <code>App::post(fn)</code> (run <code>fn</code> soon on the UI thread), <code>notify</code>, <code>Reply</code> (answer a call from any thread; the answer is passed to the UI thread for you), <code>onUiThread()</code>, and <code>co_await app.switchToUi()</code>.</li>
+        </ul>
+    </div>
+<pre>app.expose("export", [&amp;](const uniapi::json&amp; args, uniapi::Reply reply) {
+    std::thread([&amp;app, args, reply] {
+        auto rows = BuildRows(args);                       <span class="c">// heavy work off the UI thread</span>
+        app.post([&amp;app, rows, reply] {                     <span class="c">// back on the UI thread</span>
+            auto path = app.saveFileDialog({"Export", "rows.csv", "CSV file", "*.csv"});
+            if (!path) return reply.resolve(nullptr);      <span class="c">// cancelled</span>
+            WriteCsv(*path, rows);
+            reply.resolve(*path);
+        });
+    }).detach();
+});</pre>
+    <div class="prose">
+        <p>Open modal dialogs from a function passed to <code>post()</code>, as above, rather than directly inside a call or event handler: <code>post</code> runs outside the web view's own event processing. Keep handlers short; long work on the UI thread freezes the window and the page.</p>
+        <p><code>every(interval, fn)</code> timers use high-resolution waits on Windows and keep firing under heavy message traffic.</p>
+    </div>
+</section>
+
+<!-- ============================================================ LATENCY -->
+<section id="latency">
+    <h2>Latency</h2>
+    <div class="prose">
+        <p>A message between C++ and the page takes a fraction of a millisecond each way; what adds to it is either side being busy when it arrives. Measured on Windows 11 (WebView2, Release build) with the latency probe below:</p>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>What</th><th>Median</th></tr></thead>
+            <tbody>
+                <tr><td>A message page → C++, or C++ → page (no input involved)</td><td>0.2-0.4 ms</td></tr>
+                <tr><td>There and back (an <code>app.native</code> call and its answer)</td><td>about 0.7 ms</td></tr>
+                <tr><td>C++'s answer back on the page after a click</td><td>1-2 ms</td></tr>
+                <tr><td>... with Chromium's deferral after input kept (<code>deferTasksAfterInput = true</code>)</td><td>8-13 ms</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="prose">
+        <p><strong>Busy sides.</strong> A message that arrives while its receiver works waits for the work: C++ handlers and timers run on the UI thread (keep them short, or hand long work to a thread, see <a href="#threads">Threads</a>), and the page handles messages between its frames, so a page that animates a lot every frame handles input and messages later. A page that animates only what is in view keeps that short: in one, a key press reached C++ in 0.8 ms (median) instead of 13.</p>
+        <p><strong>After a click or key.</strong> Chromium's scheduler normally holds the page's other tasks after an input until the next frame is drawn, so the input's own response paints first; C++'s messages wait with them, and C++'s answer to the click shows a frame later. uniapi turns that off on Windows by default: <code>AppOptions::deferTasksAfterInput</code> (C: <code>defer_tasks_after_input</code>) is <code>false</code>, and the engine starts with <code>--disable-features=DeferRendererTasksAfterInput</code>, joined to a <code>--disable-features</code> in <code>browserArguments</code>. Set it to <code>true</code> to keep Chromium's way. Linux (WebKitGTK) schedules its own way and ignores it.</p>
+        <p><strong>Drawing.</strong> Whatever C++ sends, the screen shows it at the next frame, up to 16.7 ms later at 60 Hz: a key C++ lights in answer to a click is drawn about 12 ms after the click. Sound doesn't wait for that: an audio engine in C++ acts when the message arrives.</p>
+        <p><strong>Measuring.</strong> <code>build/uniapi_latency</code> runs the measures above on your machine: messages each way (idle, page busy, C++ busy; on a clock synced to C++'s, the fastest of 50 calls bounding its error) by itself, then C++'s answer to your clicks on its pad (timed from the input event's own time; with and without a screen change, with and without an animation). <code>--exit</code> runs the first part, prints it and closes; <code>--keep-defer</code> compares with Chromium's default; <code>--browser-arguments=...</code> passes engine switches. To time something of your own, take <code>event.timeStamp</code> at the input, a C++ clock in your handler, and sync the two clocks the same way (see <code>tests/latency/web/index.html</code>).</p>
+    </div>
+</section>
+
+<!-- ============================================================ COROUTINES -->
+<section id="coroutines">
+    <h2>Coroutines (C++20)</h2>
+    <div class="prose">
+        <p>Every call between C++ and the page is asynchronous, so a sequence of calls that depend on each other nests callbacks. With C++20 coroutines it reads top to bottom instead, and still never blocks the window. Include <code>&lt;uniapi/coro.hpp&gt;</code> and compile that code as C++20 (<code>target_compile_features(myapp PRIVATE cxx_std_20)</code>); the library itself stays C++17.</p>
+    </div>
+    <div class="prose">
+        <p>The same flow both ways: ask the page for a name, ask it to confirm, delete files on a worker thread, then tell the page. With callbacks:</p>
+    </div>
+<pre>app.call("askName", json::array(), [&amp;](const uniapi::Result&amp; name) {
+    if (!name.ok) return;
+    app.call("confirm", json::array({"Delete " + name.value.get&lt;std::string&gt;() + "?"}),
+             [&amp;](const uniapi::Result&amp; ok) {
+        if (!ok.ok || !ok.value.get&lt;bool&gt;()) return;
+        std::thread([&amp;] {
+            DeleteFiles();
+            app.post([&amp;] { app.call("showMessage", json::array({"Deleted"})); });
+        }).detach();
+    });
+});</pre>
+    <div class="prose">
+        <p>With a coroutine:</p>
+    </div>
+<pre>#include &lt;uniapi/coro.hpp&gt;
+
+uniapi::Task&lt;&gt; deleteFlow(uniapi::App&amp; app) {
+    uniapi::Result name = co_await app.callAsync("askName");
+    if (!name.ok) co_return;
+    uniapi::Result ok = co_await app.callAsync("confirm", {"Delete " + name.value.get&lt;std::string&gt;() + "?"});
+    if (!ok.ok || !ok.value.get&lt;bool&gt;()) co_return;
+    co_await uniapi::switchToBackground();            <span class="c">// the rest runs on a worker thread</span>
+    DeleteFiles();
+    co_await app.switchToUi();                        <span class="c">// back before touching the App</span>
+    co_await app.callAsync("showMessage", {"Deleted"});
+}
+
+<span class="c">// Start it from anywhere on the UI thread, e.g. an event; it runs on by itself.</span>
+app.on("delete-clicked", [&amp;app](const uniapi::json&amp;) { deleteFlow(app); });
+
+<span class="c">// An exposed coroutine answers the page when it finishes, or rejects when it throws.</span>
+app.expose("thumbnail", [&amp;app](uniapi::Bytes image, int width) -&gt; uniapi::Task&lt;uniapi::Bytes&gt; {
+    co_await uniapi::switchToBackground();            <span class="c">// heavy work off the UI thread</span>
+    uniapi::Bytes small(MakeThumbnail(image, width));
+    co_await app.switchToUi();                        <span class="c">// back before touching the App</span>
+    co_return small;
+});</pre>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Await</th><th>What it does</th></tr></thead>
+            <tbody>
+                <tr><td class="k">co_await app.callAsync(fn, args)</td><td><code>App::call</code> as a value: gives the <code>Result</code></td></tr>
+                <tr><td class="k">co_await app.sleep(duration)</td><td>Continues after <code>duration</code>, on the UI thread, without blocking it</td></tr>
+                <tr><td class="k">co_await app.switchToUi()</td><td>Continues on the UI thread (works from any thread)</td></tr>
+                <tr><td class="k">co_await uniapi::switchToBackground()</td><td>Continues on a new background thread; use the <code>App</code> again only after <code>switchToUi()</code></td></tr>
+                <tr><td class="k">co_await task</td><td>Waits for another <code>uniapi::Task&lt;T&gt;</code>; gives its value or rethrows its exception</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="prose">
+        <p>A <code>uniapi::Task&lt;T&gt;</code> (<code>Task&lt;&gt;</code> for no value) starts running at once and runs until its first <code>co_await</code>. One other coroutine may await it; a Task nobody keeps still runs to the end, and an exception nobody collects is printed to stderr. An exposed coroutine must take its parameters by value (not <code>const&amp;</code>): they have to outlive the call, which returns at the first <code>co_await</code>. A <code>static_assert</code> catches references.</p>
+        <p><strong>When to use which.</strong> Both styles use the same library and run equally fast, and they mix freely in one app. Coroutines pay off for flows with several waits in a row (a dialog and then a confirmation, load–process–show sequences, anything that hops to a worker thread and back): the code reads like ordinary code, and one <code>try</code>/<code>catch</code> covers every step. For a simple handler (<code>[](int a, int b) { return a + b; }</code>), events and stream frames, the plain style is just as clear and avoids a small allocation per call. Lifetimes need the same care in both: anything captured by reference must still exist when the coroutine resumes, which is easy to forget because the code looks synchronous.</p>
+    </div>
+</section>
+
+<!-- ============================================================ PAGES -->
+<section id="pages">
+    <h2>Serving pages</h2>
+    <div class="prose">
+        <p>Pages are served from the app itself, on its own origin (<code>https://uniapi.example/</code> on Windows, <code>uniapi://uniapi.example/</code> on Linux and macOS), so nothing touches the network or the disk unless you choose to. Each request is answered from, in order:</p>
+        <ol>
+            <li><code>/uniapi/stream/&lt;name&gt;/&lt;slot&gt;</code>: stream bytes in fetch mode.</li>
+            <li><code>/uniapi/…</code>: the library's own files, such as <code>/uniapi/uniapi.js</code>.</li>
+            <li>The table given to <code>serve()</code>: files compiled in with <code>uniapi_embed()</code>.</li>
+            <li>The folder given to <code>serveDirectory()</code>, read on every request. Handy while editing: change a file and reload.</li>
+        </ol>
+        <p>A path ending in <code>/</code> serves its <code>index.html</code>. Query strings are ignored for the lookup, so <code>/index.html?draw=webgl</code> serves <code>index.html</code> and the page reads the query itself. Paths containing <code>..</code> are refused. Responses are not cached.</p>
+    </div>
+<pre><span class="c"># CMakeLists.txt</span>
+add_executable(myapp WIN32 main.cpp)
+target_link_libraries(myapp PRIVATE uniapi)
+uniapi_embed(myapp my_web "${CMAKE_CURRENT_SOURCE_DIR}/web")
+
+<span class="c">// main.cpp</span>
+UNIAPI_ASSETS(my_web);
+app.serve(my_web);                    <span class="c">// web/index.html is served as /index.html</span></pre>
+    <div class="prose">
+        <p>Content types come from the file extension: <code>.html .htm .js .mjs .css .json .svg .png .jpg .jpeg .gif .webp .ico .wasm .woff2 .txt</code>. Anything else is served as <code>application/octet-stream</code>.</p>
+    </div>
+</section>
+
+<!-- ============================================================ WINDOWS -->
+<section id="windows">
+    <h2>More windows</h2>
+    <div class="prose">
+        <p><code>app.openWindow(options)</code> opens a further window with its own web view and page, connected to C++ the same way as the main window's. It returns a <a href="#ref-window"><code>uniapi::Window</code></a>, which has everything that concerns a page and its window: <code>navigate</code>, <code>expose</code>, <code>on</code>, <code>call</code>, <code>emit</code>, <code>callAsync</code>, <code>stream</code>, <code>sendDom</code>, <code>onConnect</code>, <code>onDisconnect</code>, the title, size, icon and title bar, <code>close()</code> and <code>onClosed</code>. <code>App</code> is itself the main window, and adds what belongs to the program: served files, timers, <code>post</code>, dialogs, the event loop.</p>
+        <ul>
+            <li><strong>Owned</strong> (the default): opened centred over the main window, kept above it, minimised and closed with it. <code>owned = false</code> gives a window of its own in the taskbar, still closed with the app. <strong>Modal</strong>: the main window takes no input until it closes, as a dialog.</li>
+            <li><strong>Calls and events.</strong> A further window's page calls its own window's functions, and the app's where its window has none of that name; the same for events. C++'s <code>call</code> and <code>emit</code> on a window reach that window's page only.</li>
+            <li><strong>Streams</strong> belong to a window (<code>mixer.stream(...)</code>), with shared memory as in the main window: one WebView2 environment, one browser process, serves every window.</li>
+            <li><strong>One stream, several windows.</strong> <code>stream.addWindow(mixer)</code> sends a stream to that window's page too, under the same name. C++ writes each slot once (with shared memory every page reads the same memory); a slot comes back once every page it went to has handed it back, so the slowest page sets the pace. <code>removeWindow</code> stops it; replacing the stream keeps its windows.</li>
+            <li><strong>Lifetime.</strong> Opened before <code>run()</code>, a window opens with the main window. The App owns it: it lives until it has closed (it is destroyed after its <code>onClosed</code> returns) or the App ends. <code>app.windows()</code> lists the open ones.</li>
+            <li>macOS: an <code>NSWindow</code> and web view sharing the main window's profile. Owned windows open centred over the main window; a modal one keeps clicks and keys from the main window until it closes. Streams fetch, as in every macOS window.</li>
+            <li>Linux: a GTK window and web view in the main window's web context. GTK's dark title bar is app-wide, so further windows follow the main window's <code>titleBar</code>.</li>
+        </ul>
+    </div>
+<pre>uniapi::WindowOptions options;
+options.title = "Mixer";
+uniapi::Window&amp; mixer = app.openWindow(options);
+mixer.expose("fader", [](int channel, double db) { <span class="c">/* ... */</span> });
+mixer.onConnect = [&amp;](const std::string&amp;) { mixer.emit("levels", Levels()); };
+mixer.onClosed = [&amp;] { <span class="c">/* drop references to it here */</span> };
+mixer.navigate("/mixer.html");</pre>
+</section>
+
+<section id="hiding">
+    <h2>Hiding, showing and closing</h2>
+    <div class="prose">
+        <p>A window can leave the screen without closing, its page connected and running, and come back as it was: for an app that lives in the tray, a window toggled on and off, an app that starts in the background. And the app decides what the user closing a window means.</p>
+        <ul>
+            <li><strong><code>startHidden</code></strong> (<code>AppOptions</code>, <code>WindowOptions</code>): the window and its page are made and the page loads and works (it connects, calls and is called), but nothing is on screen until <code>show()</code>.</li>
+            <li><strong><code>hide()</code></strong> takes a window off the screen and out of the taskbar (or the Window menu); <strong><code>show()</code></strong> brings it back in front, restored if minimised, with focus unless <code>activate</code> is off. <code>visible()</code> says which; a minimised window counts as visible. Before <code>run()</code>, <code>hide()</code> makes it open hidden. Only that window hides: further windows stay as they are.</li>
+            <li>A page's <code>app.show()</code> (<code>showWhenReady</code>) doesn't show a window C++ keeps hidden; a window first shown after starting hidden waits for its page to draw, so it never appears half built. A modal window holds the main window only while it is shown.</li>
+            <li><strong><code>onCloseRequested(reason)</code></strong> is asked when the user closes a window: its close button, Cmd+W, Alt+F4, the taskbar's or the window manager's Close (<code>CloseReason::Window</code>), and on macOS the app's Quit (Cmd+Q, the app menu, the Dock: <code>CloseReason::Quit</code>, asked of the main window). <code>true</code> lets it close; <code>false</code> keeps it open, to <code>hide()</code> it instead, or to ask the page first and <code>close()</code> once answered. <code>close()</code>, <code>quit()</code>, the App ending, and a logout or shutdown don't ask. An empty handler, or one that throws, lets the window close.</li>
+            <li>macOS: clicking the app in the Dock with no window on screen shows a hidden main window again, as Mac apps that keep running without windows do.</li>
+        </ul>
+    </div>
+<pre>options.startHidden = true;            <span class="c">// opens hidden; the page works</span>
+app.show();                            <span class="c">// in front again; app.visible()</span>
+app.hide();                            <span class="c">// off the screen, not closed</span>
+
+app.onCloseRequested = [&amp;](uniapi::CloseReason reason) {
+    if (reason == uniapi::CloseReason::Window) {
+        app.hide();                    <span class="c">// keep running (in the tray, say)</span>
+        return false;
+    }
+    return true;                       <span class="c">// macOS Quit: let it end</span>
+};
+
+editor.onCloseRequested = [&amp;](uniapi::CloseReason) {
+    if (!unsaved) return true;
+    editor.call("confirmClose", uniapi::json::array(), [&amp;](const uniapi::Result&amp; r) {
+        if (r.ok &amp;&amp; r.value == true) editor.close();  <span class="c">// close() doesn't ask again</span>
+    });
+    return false;
+};</pre>
+</section>
+
+<section id="placement">
+    <h2>Window placement</h2>
+    <div class="prose">
+        <p>Where a window is and how: its size and position, minimised or maximised, on top; and its placement kept, as text or between runs. Logical pixels from the primary screen's top-left corner; a position is the window frame's top-left corner, a size the page area's. Every window has these.</p>
+        <ul>
+            <li><strong>The screens.</strong> <code>screens()</code>: each screen's whole area (<code>x</code>, <code>y</code>, <code>width</code>, <code>height</code>), its <code>scale</code> (physical pixels per logical pixel), whether it is the <code>primary</code> one and whether the window is on it (<code>current</code>). On every platform, Wayland and GTK 4 too; on Linux <code>primary</code> is known with GTK 3 on X11 only, GTK 3 gives whole scales only, and before <code>run()</code> there are none. C: <code>uniapi_window_screens</code>.</li>
+            <li><strong>Size and position.</strong> <code>size()</code>, <code>position()</code> (empty where the platform doesn't say), <code>setPosition(x, y)</code> (before <code>run()</code>: where it opens), <code>center()</code> (macOS: a little above the middle, as Mac apps open).</li>
+            <li><strong>Minimised, maximised.</strong> <code>minimize()</code>, <code>maximize()</code> (macOS: zoom), <code>restore()</code>, <code>minimized()</code>, <code>maximized()</code>. A hidden window, or one not open yet, takes the state when shown. Full screen is <code>setFullscreen</code>'s.</li>
+            <li><strong>On top.</strong> <code>setAlwaysOnTop(true)</code> keeps it above other apps' windows (a tool panel, a meter); false where the platform can't.</li>
+            <li><strong><code>onPlacementChanged</code></strong>: moved, resized, minimised, maximised or restored, by the person or the app (often, while dragged).</li>
+            <li><strong>A placement to keep.</strong> <code>placement()</code> is the normal position and size (while maximised, the size before) and whether it was maximised, as text for the app's settings; <code>setPlacement(text)</code> puts it back on a screen that is still there: a position off every screen now (a laptop undocked) gives a centred window, no larger than its screen. False only for text <code>placement()</code> didn't make.</li>
+            <li><strong>Remembered.</strong> <code>rememberPlacement = "name"</code> (<code>AppOptions</code>, <code>WindowOptions</code>): the window opens where and as it was left, saved when it closes (or the App ends) in <code>&lt;config&gt;/&lt;program&gt;/uniapi-placement.json</code>: <code>~/.config</code> on Linux, <code>~/Library/Application Support</code> on macOS, <code>%AppData%</code> on Windows.</li>
+            <li><strong>Linux.</strong> Size, minimised and maximised everywhere. The position, centring and always on top with GTK 3 on X11 only: Wayland doesn't let apps place their windows or know where they are, and GTK 4 has no API for either. There <code>position()</code> is empty, <code>setPosition</code> and <code>center</code> do nothing, <code>setAlwaysOnTop</code> returns false, and a placement keeps size and maximised (a remembered position is kept with GTK 3 on X11, also for the main window given before <code>run()</code>). Wayland tells an app nothing of minimised windows: with GTK 4, a window <code>minimize()</code> minimised counts as minimised once the desktop has stopped showing it, until the person brings it back, and <code>restore()</code>, <code>show()</code> and <code>maximize()</code> bring it back (by taking it off the screen and putting it back); GTK 3 on Wayland can minimise but neither tell nor undo it.</li>
+        </ul>
+    </div>
+<pre>options.rememberPlacement = "main";        <span class="c">// opens where it was left</span>
+uniapi::App app(options);
+app.onPlacementChanged = [&amp;] { SaveLater(app.placement()); };
+
+if (auto where = app.position()) Log(where-&gt;x, where-&gt;y);
+app.setAlwaysOnTop(meterMode);
+app.maximize();</pre>
+</section>
+
+<section id="tray">
+    <h2>The tray</h2>
+    <div class="prose">
+        <p><code>uniapi::tray::Tray</code> (<code>#include &lt;uniapi/tray.hpp&gt;</code>, link <code>uniapi_tray</code>) puts the app's icon in the system tray with a tooltip, a menu and a click of its own. A part of its own: only apps that link it carry it. Use it on the UI thread, as the App, also in <code>main()</code> before <code>run()</code>; the icon appears once <code>run()</code> runs.</p>
+        <ul>
+            <li><strong><code>Tray(app, {icon, templateImage, tooltip})</code></strong>: the icon is a PNG (macOS draws it 18 points high: a 36-pixel image is sharp on Retina; <code>templateImage</code>: drawn from its alpha in the menu bar's colour). Throws <code>std::runtime_error</code> without a tray (<code>available()</code>) or a PNG the platform can read.</li>
+            <li><strong><code>setMenu({...})</code></strong>: <code>Item{label, onClick, checked, disabled}</code> and <code>Item::separator()</code>. Change a check mark or a label by setting the menu again. A separator or a disabled item runs nothing.</li>
+            <li><strong><code>onClick</code></strong>: a plain click on the icon; empty, the click opens the menu. The right button (macOS: also Control-click) always opens it. On Linux, set it before the icon appears: hosts read then whether a click opens the menu.</li>
+            <li><strong>Its end</strong>: the destructor, <code>remove()</code>, or the App ending (whichever comes first) takes the icon away; a Tray outliving its App does nothing after. On Windows an icon left behind would stay in the notification area until the mouse passed over it.</li>
+            <li><strong><code>available()</code></strong>: always on macOS and Windows; on Linux when the desktop has a tray host (a StatusNotifierWatcher: KDE Plasma, XFCE, Cinnamon, LXQt, waybar...), which stock GNOME hasn't without the AppIndicator extension. Without one, an app shouldn't hide its window to the tray.</li>
+            <li>macOS: an <code>NSStatusItem</code>. Windows: a notification-area icon and a popup menu (<code>Shell_NotifyIcon</code>), put back when Explorer restarts. Linux: a StatusNotifierItem and dbusmenu over GDBus, each icon on a session bus connection of its own.</li>
+        </ul>
+        <p>An app that keeps running in the tray hides its window when it is closed (<code>onCloseRequested</code> and <code>hide()</code>, see <a href="#hiding">Hiding, showing and closing</a>) and starts hidden at login (<code>startHidden</code>). <code>examples/uniapi_tray</code> does both. C: <code>uniapi/tray.h</code>.</p>
+    </div>
+<pre>uniapi::tray::Tray tray(app, {LogoPng(), false, "Mixer"});
+tray.setMenu({
+    {"Show", [&amp;] { app.show(); }},
+    {"Muted", [&amp;] { ToggleMute(); }, muted},
+    uniapi::tray::Item::separator(),
+    {"Quit", [&amp;] { app.quit(); }},
+});
+tray.onClick = [&amp;] { app.show(); };</pre>
+</section>
+
+<section id="notifications">
+    <h2>Notifications</h2>
+    <div class="prose">
+        <p><code>app.notify({title, body, id})</code> shows a system notification and returns its id; <code>onNotificationClicked(id)</code> hears a click on one (no handler: the main window is shown). Every call shows a new notification: the id only names it for the click, and left empty it is made unique across runs (macOS keeps notifications after the program ends, and a click on one comes to the next run). Safe from any thread; before <code>run()</code> it waits for <code>run()</code>. <code>done</code> gets a <code>Result</code>: <code>ok</code> once the system has it, or <code>error</code> saying why not, and the id in <code>value</code>, on the UI thread after <code>notify()</code> has returned; <code>co_await app.notifyAsync(...)</code> in a coroutine.</p>
+        <ul>
+            <li><strong>Linux</strong>: the desktop's notification server (<code>org.freedesktop.Notifications</code> over D-Bus); its name and icon come from the app's <code>.desktop</code> file, which <code>uniapi_install()</code> makes.</li>
+            <li><strong>macOS</strong>: Notification Center, from an <code>.app</code> bundle only (<code>uniapi_install()</code>); a plain executable gets an error saying so. The first notification asks the person to allow them; those sent meanwhile wait for the answer, and a refusal says where to turn them on.</li>
+            <li><strong>Windows</strong>: a notification-area balloon, which Windows 10 and 11 show as a notification. The program's icon (or the main window's, after <code>setIcon</code>) is in the notification area while it is shown; one at a time, a new one replacing the last.</li>
+        </ul>
+        <p>The person may never see one (do not disturb, notifications turned off for the app). <code>examples/uniapi_notify</code> tries them.</p>
+    </div>
+<pre>app.notify({"Export done", "mix.wav is ready."});
+uniapi::Result r = co_await app.notifyAsync({"Render failed", Why()});
+if (!r.ok) Log("not shown: " + r.error);
+app.onNotificationClicked = [&amp;](const std::string&amp; id) { app.show(); OpenExport(id); };</pre>
+</section>
+
+<section id="desktop">
+    <h2>Links, dropped files, the clipboard, one instance</h2>
+    <div class="prose">
+        <p>What crosses between the app and the rest of the desktop.</p>
+        <ul>
+            <li><strong>The page stays the app's.</strong> A link, a form or <code>window.open</code> to another site (or a script going there after a click) doesn't load in the window: the navigation is cancelled and <code>App::onExternalURL(url)</code> decides, <code>true</code> opening the URL with the system (no handler: it opens). No popup window ever opens. A <code>file:</code> URL never loads, so a file dropped on a page that doesn't take it can't replace the page. Iframes load what they like.</li>
+            <li><strong>Opening things with the system</strong>, from any thread: <code>openURL</code> (the default browser, the mail app for <code>mailto:</code>...), <code>openPath</code> (a file with its default app, a folder in the file manager), <code>revealPath</code> (the file manager, the file selected: Finder, Explorer, and on Linux <code>org.freedesktop.FileManager1</code>, else its folder opens). Each throws <code>std::runtime_error</code> saying why when it can't.</li>
+            <li><strong>Dropped files.</strong> <code>Window::onFileDrop(paths, x, y)</code>: the paths of files dropped on a window, and where, in CSS pixels. The page gets its own drop event too (with <code>File</code> objects, which have no paths), except on GTK 4, which gives the files to one of the two.</li>
+            <li><strong>The clipboard's text.</strong> <code>setClipboardText(text)</code> puts it there for other apps (false if the system refused it); <code>clipboardText(done)</code> reads it, <code>done</code> getting the text or nothing, later on the UI thread (GTK 4 reads asynchronously); <code>co_await clipboardTextAsync()</code> in a coroutine. On Wayland the compositor may ignore an app the person hasn't just used (a click or key in it).</li>
+            <li><strong>One instance.</strong> <code>AppOptions::singleInstance = "org.example.mixer"</code>: a launch while the app runs hands its arguments and working folder to it (<code>App::onSecondInstance</code>; no handler: the main window is shown) and ends in the <code>App</code> constructor, before any window opens. Per user: a Unix-domain socket in the user's runtime folder (Linux) or temporary folder (macOS), a named pipe on Windows.</li>
+        </ul>
+    </div>
+<pre>app.onExternalURL = [](const std::string&amp; url) {
+    return url.rfind("https://", 0) == 0;   <span class="c">// open web links, nothing else</span>
+};
+app.onFileDrop = [&amp;](const std::vector&lt;std::string&gt;&amp; paths, int x, int y) {
+    for (const auto&amp; path : paths) Import(path);
+};
+app.setClipboardText(Report());
+std::optional&lt;std::string&gt; pasted = co_await app.clipboardTextAsync();
+
+options.singleInstance = "org.example.mixer";
+app.onSecondInstance = [&amp;](const std::vector&lt;std::string&gt;&amp; args, const std::string&amp; dir) {
+    app.show();
+    for (const auto&amp; file : args) Open(dir, file);
+};</pre>
+</section>
+
+<!-- ============================================================ C++ REFERENCE -->
+<section id="reference-cpp">
+    <h2>C++ reference</h2>
+    <div class="prose">
+        <p>Everything is in namespace <code>uniapi</code>. Include <code>&lt;uniapi/uniapi.hpp&gt;</code>; it brings in <code>dom.hpp</code>, <code>assets.hpp</code> and nlohmann/json. <span class="tag any">any thread</span> marks the only members that are safe off the UI thread.</p>
+    </div>
+
+    <div class="ref" id="ref-app">
+        <div class="head">
+            <h3><code>class App</code></h3>
+            <p>The window, its web view, and everything that crosses between C++ and the page. Not copyable. <code>App</code> is the main <a href="#ref-window"><code>Window</code></a>: the members below that concern a page and its window (navigating, calls, events, streams, DOM lists, the connection, title, size, icon) belong to <code>Window</code> and work on further windows too; serving files, timers, <code>post</code>, dialogs and the event loop are the App's.</p>
+        </div>
+
+        <div class="groupname">Lifetime</div>
+        <div class="entry">
+            <pre class="sig">explicit App(AppOptions options = {});</pre>
+            <div class="desc"><p>Prepares the app. The window appears when you call <code>run()</code>. See <a href="#ref-options"><code>AppOptions</code></a>.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">int</span> run();</pre>
+            <div class="desc"><p>Creates the window and web view, loads the page passed to <code>navigate()</code>, and runs the event loop. Returns when the window is closed or <code>quit()</code> is called. On Windows it first waits for WebView2's browser process to exit (about 0.3 s, at most 1.5 s), so the same app started again right away doesn't stall on the old one.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">void</span> quit();</pre>
+            <div class="desc"><p>Closes the window without asking <code>onCloseRequested</code>; <code>run()</code> then returns.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">std::string</span> notify(Notification notification, std::function&lt;void(const Result&amp;)&gt; done = {});
+<span class="ret">NotifyAwaiter</span> notifyAsync(Notification notification);
+std::function&lt;void(const std::string&amp; id)&gt; onNotificationClicked;
+std::function&lt;bool(const std::string&amp; url)&gt; onExternalURL;
+std::function&lt;void(const std::vector&lt;std::string&gt;&amp; arguments, const std::string&amp; workingDirectory)&gt; onSecondInstance;
+<span class="ret">void</span> clipboardText(std::function&lt;void(std::optional&lt;std::string&gt; text)&gt; done);
+<span class="ret">ClipboardAwaiter</span> clipboardTextAsync();
+<span class="ret">bool</span> setClipboardText(std::string_view text);</pre>
+            <div class="desc"><p><code>onExternalURL</code>: a page tried to leave the app's pages for <code>url</code>; the navigation is cancelled, and <code>true</code> opens it with the system (no handler: it opens). <code>onSecondInstance</code>: a later launch's arguments and working folder (<code>AppOptions::singleInstance</code>; no handler: the main window is shown). <code>clipboardText</code>: the clipboard's text, or nothing when it holds none, given to <code>done</code> on the UI thread after the call has returned; <code>co_await clipboardTextAsync()</code> in a coroutine. <code>setClipboardText</code>: false if the system refused it (on Windows and Linux also before <code>run()</code>). See <a href="#desktop">Links, dropped files, the clipboard, one instance</a>. <code>notify</code>, <code>notifyAsync</code>, <code>onNotificationClicked</code>: see <a href="#notifications">Notifications</a>.</p></div>
+        </div>
+
+        <div class="groupname">Pages</div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">void</span> serve(const AssetTable&amp; assets);</pre>
+            <div class="desc"><p>Serves files compiled in with <a href="#ref-cmake"><code>uniapi_embed()</code></a>. The table must outlive the app; generated tables are global constants, so they do.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">void</span> serveDirectory(std::string path);</pre>
+            <div class="desc"><p>Serves files from a folder (UTF-8 path), read on every request. Checked after the <code>serve()</code> table.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">void</span> navigate(std::string_view path);</pre>
+            <div class="desc"><p>Loads a page, for example <code>"/index.html"</code> or <code>"/view.html?id=3"</code>. Before <code>run()</code>, the path is remembered and loaded once the web view exists. The current page's connection ends.</p></div>
+        </div>
+
+        <div class="groupname">JavaScript calls C++</div>
+        <div class="entry">
+            <pre class="sig">template &lt;typename F&gt;
+<span class="ret">void</span> expose(std::string name, F fn);</pre>
+            <div class="desc">
+                <p>Makes <code>fn</code> callable from the page as <code>app.native.name(...)</code>. Registering a name again replaces the function. <code>fn</code> is a lambda, function or function pointer of one of two forms:</p>
+                <ul>
+                    <li><strong>Typed:</strong> <code>R fn(A1, A2, …)</code>. Each argument is converted from JSON with <code>get&lt;A&gt;()</code>; the result goes back with <code>json(R)</code>; <code>void</code> resolves with <code>null</code>. An exception rejects the call with <code>what()</code>.</li>
+                    <li><strong>Answer later:</strong> <code>void fn(const json&amp; args, Reply reply)</code>. <code>args</code> is the array of arguments. Answer through <code>reply</code> once, now or later, from any thread.</li>
+                </ul>
+            </div>
+        </div>
+        <div class="entry">
+            <pre class="sig">using Handler = std::function&lt;void(const json&amp; args, const Reply&amp; reply)&gt;;
+<span class="ret">void</span> exposeHandler(std::string name, Handler handler);</pre>
+            <div class="desc"><p>The untyped form <code>expose()</code> is built on. Use it to register handlers chosen at run time.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">void</span> on(std::string event, std::function&lt;void(const json&amp; data)&gt; handler);</pre>
+            <div class="desc"><p>Handles events the page sends with <code>app.emit(event, data)</code>. One handler per name; registering again replaces it.</p></div>
+        </div>
+
+        <div class="groupname">C++ calls JavaScript</div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">void</span> call(std::string_view function, json args = json::array(),
+          std::function&lt;void(const Result&amp;)&gt; done = {});</pre>
+            <div class="desc"><p>Runs a function the page registered with <code>app.expose()</code>. <code>args</code> is an array of arguments; any other value is sent as the only argument. <code>done</code>, if given, runs exactly once on the UI thread with a <a href="#ref-reply"><code>Result</code></a>. Without a connected page it runs at once with <code>no page is connected</code>.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">void</span> emit(std::string_view event, json data = nullptr);</pre>
+            <div class="desc"><p>Sends an event to the page's <code>app.on(event)</code> handlers. Dropped if no page is connected.</p></div>
+        </div>
+
+        <div class="groupname">Large data</div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">Stream&amp;</span> stream(const std::string&amp; name, size_t slotSize, int slotCount);</pre>
+            <div class="desc"><p>Creates a stream, or replaces the one with that name (the old reference becomes invalid). Throws <code>std::invalid_argument</code> for an empty name, a name containing <code>/ ? # " \</code>, the name <code>uniapi.dom</code>, a slot size of 0, or a slot count outside 1–64. The reference stays valid until the stream is replaced or the app is destroyed. See <a href="#ref-stream"><code>Stream</code></a>.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">bool</span> sendDom(const std::function&lt;void(DomCommandWriter&amp;)&gt;&amp; write);</pre>
+            <div class="desc"><p>Calls <code>write</code> to fill one DOM command list (up to 64 KB) and sends it. Returns false, without calling <code>write</code>, if no page is connected or both list slots are still with the page; try again on the next update. See <a href="#ref-dom"><code>DomCommandWriter</code></a>.</p></div>
+        </div>
+
+        <div class="groupname">Connection</div>
+        <div class="entry">
+            <pre class="sig">std::function&lt;void(const std::string&amp; page)&gt; onConnect;
+std::function&lt;void(const std::string&amp; page)&gt; onDisconnect;</pre>
+            <div class="desc"><p><code>onConnect</code> runs when a page has connected and is ready; <code>page</code> is the name it passed to <code>uniapi.connect()</code>. <code>onDisconnect</code> runs when that page goes away (navigation, reload or closing), after its pending calls have failed.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">bool</span> connected() const;
+<span class="ret">const std::string&amp;</span> page() const;
+<span class="ret">bool</span> sharedMemory() const;</pre>
+            <div class="desc"><p>Whether a page is connected, its name (empty if none), and whether streams use shared memory (known once the web view exists; false for a page that fell back to fetching).</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">WebEngine</span> webEngine() const;
+struct WebEngine { std::string name, version, variant; };</pre>
+            <div class="desc"><p>The web engine the app's pages run in and its version, for an About box or a bug report: <code>WebKitGTK</code> 2.50.1 on Linux (the library loaded at run time), <code>WebView2</code> 131.0.2903.86 on Windows (the installed runtime, so the Chromium version), <code>WebKit</code> 621.1.15 on macOS (the system's). On Windows the version is <code>""</code> until <code>run()</code> has started WebView2 (known in any handler, and from <code>onConnect</code> on). On Linux <code>variant</code> tells which WebKitGTK the program is built for, <code>API 6.0, GTK 4</code> or <code>API 4.1, GTK 3</code> (the same engine version comes in both); it is empty elsewhere. C: <code>uniapi_web_engine(app, &amp;info)</code> fills a <code>uniapi_web_engine_info</code>.</p></div>
+        </div>
+
+        <div class="groupname">Window and event loop</div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">void</span> setTitle(std::string_view title);</pre>
+            <div class="desc"><p>Sets the window title (UTF-8).</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">void</span> setFullscreen(bool on);
+<span class="ret">bool</span> fullscreen() const;</pre>
+            <div class="desc"><p>Switches full screen on or off, e.g. from a page button or F11 (expose a function the page calls), and reports the current state. Leaving full screen restores the window's size and place. <code>AppOptions::fullscreen</code> starts in full screen.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">void</span> setTitleBar(TitleBar mode);
+<span class="ret">TitleBar</span> titleBar() const;</pre>
+            <div class="desc"><p>The title bar and frame: <code>TitleBar::System</code> (the default) follows the system's light or dark setting, also when it changes while the app runs; <code>TitleBar::Dark</code> and <code>TitleBar::Light</code> force one, e.g. to match the page's theme. Before <code>run()</code> it sets how the window opens; <code>AppOptions::titleBar</code> does the same. Windows 10 20H1 and later, Windows 11 (DWM's dark mode); on Linux, GTK's dark-theme preference, which shows where GTK draws the title bar (GNOME), not where the window manager does (KWin), and which WebKitGTK also gives the page as its <code>prefers-color-scheme</code>. On macOS the window's appearance (Aqua or Dark Aqua), per window; the page keeps the system's <code>prefers-color-scheme</code>, as on Windows.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">void</span> show();</pre>
+            <div class="desc"><p>Brings the window to the front: shown again if hidden (<code>hide()</code>, <code>startHidden</code>; see <a href="#hiding">Hiding, showing and closing</a>), restored if minimised. The window never appears empty or white: it stays invisible (cloaked, on Windows) until its first page has loaded. With <code>AppOptions::showWhenReady</code> it waits instead until the page calls <code>app.show()</code>, or C++ calls <code>show()</code>: for a page that builds itself after loading, e.g. asks C++ for its settings first or has the window resized. After 5 seconds it appears anyway (3 seconds without <code>showWhenReady</code>; on Linux both count from the page's load, so WebKit's slow first start after a reboot doesn't use them up). On Windows the window is cloaked meanwhile. On Linux the window opens with its page hidden (its plain background shows), or, for GTK 3 on X11 with a compositor, wholly transparent; the page appears once it has drawn a frame after loading. On macOS the window is on screen but fully transparent until then.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">void</span> hide();
+<span class="ret">bool</span> visible() const;</pre>
+            <div class="desc"><p><code>hide()</code> takes the window off the screen without closing it: its page stays connected and keeps running, and <code>show()</code> brings it back. Before <code>run()</code> the window opens hidden, as with <code>startHidden</code>. <code>visible()</code> is false once hidden or closed; a minimised window, or one covered by others, counts as visible. See <a href="#hiding">Hiding, showing and closing</a>.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">void</span> setSize(int width, int height);</pre>
+            <div class="desc"><p>Resizes the page area to <code>width</code> × <code>height</code> logical pixels, like <code>AppOptions::width</code>/<code>height</code>, keeping the window where it is. With <code>keepAspectRatio</code>, resizing then keeps the new shape. Ignored in full screen; before <code>run()</code> it sets the size the window opens with. An app that shows different pages can take each one's shape with it.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">bool</span> setIcon(const unsigned char* png, size_t size);</pre>
+            <div class="desc"><p>Sets the window icon from PNG bytes, before or after <code>run()</code>, typically from your embedded files: <code>if (auto* icon = my_web.find("icon.png")) app.setIcon(icon-&gt;data, icon-&gt;size);</code>. Returns false if the bytes can't be read as a PNG, or on GTK 4, which takes window icons only from the app's <code>.desktop</code> file and icon theme. On Wayland the compositor uses the <code>.desktop</code> file on GTK 3 too. On Windows a window without one shows the program's icon (see <a href="#ref-cmake"><code>uniapi_icon()</code></a>). Mac windows have no icons: there the main window's <code>setIcon()</code> sets the app's icon in the Dock while it runs (an installed app has its bundle's already), and a further window's returns false.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">int</span>  every(std::chrono::milliseconds interval, std::function&lt;void()&gt; fn);
+<span class="ret">void</span> cancel(int timer);</pre>
+            <div class="desc"><p>Calls <code>fn</code> on the UI thread once right away, then every <code>interval</code> (at least 1 ms), until cancelled with the returned ID. Returns 0 if no timer could be created (Windows allows 63 at once). An exception escaping <code>fn</code> is printed to stderr and the timer keeps running.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">void</span> post(std::function&lt;void()&gt; fn);</pre>
+            <span class="tag any">any thread</span>
+            <div class="desc"><p>Runs <code>fn</code> soon on the UI thread, outside any web view event. Functions run in the order posted. An exception escaping <code>fn</code> is printed to stderr.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">std::optional&lt;std::string&gt;</span> saveFileDialog(const SaveDialogOptions&amp; options);</pre>
+            <div class="desc">
+                <p>Shows a modal Save dialog and returns the chosen path (UTF-8), or nothing if cancelled. Call it from <code>post()</code>.</p>
+<pre>struct SaveDialogOptions {
+    std::string title = "Save";
+    std::string defaultName;     <span class="c">// suggested file name</span>
+    std::string filterName;      <span class="c">// e.g. "CSV file"</span>
+    std::string filterPattern;   <span class="c">// e.g. "*.csv"; several separated by ';'</span>
+    std::vector&lt;FileFilter&gt; filters;  <span class="c">// more file types: {name, pattern}, after filterName/filterPattern's</span>
+    std::string directory;       <span class="c">// the folder it opens in</span>
+};</pre>
+                <p><code>filters</code> are more file types to choose from (<code>FileFilter{name, pattern}</code>; the pattern <code>"*"</code> is every file), listed after <code>filterName</code>/<code>filterPattern</code>'s, which is the one selected; without those, the first of <code>filters</code> is. A type without a pattern is left out. <code>directory</code> is the folder the dialog opens in; empty, or one that isn't there: the system's choice (usually where it was last).</p>
+            </div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">std::vector&lt;std::string&gt;</span> openFileDialog(const OpenDialogOptions&amp; options = {});</pre>
+            <div class="desc">
+                <p>Shows a modal Open dialog and returns the chosen paths (UTF-8), or none if cancelled. Call it from <code>post()</code>. With <code>folder</code> the user picks folders; with <code>multiple</code>, several. On Linux the dialog is the desktop's own where it offers one (through the portal); KDE's returns a single folder even with <code>folder</code> and <code>multiple</code>. <code>filters</code> and <code>directory</code> as for <code>saveFileDialog</code>; on Windows, <code>filterPattern</code> alone is followed by "All files", while a list in <code>filters</code> is shown as given. On macOS it is <code>NSOpenPanel</code>, and the Save dialog <code>NSSavePanel</code>, which have no list of types to choose from: a panel allows the files of every filter (by their extensions), and names aren't shown.</p>
+<pre>struct OpenDialogOptions {
+    std::string title = "Open";
+    std::string filterName;      <span class="c">// e.g. "Images"</span>
+    std::string filterPattern;   <span class="c">// e.g. "*.png;*.jpg"; ignored for folders</span>
+    std::vector&lt;FileFilter&gt; filters;  <span class="c">// more file types; ignored for folders</span>
+    bool multiple = false;
+    bool folder = false;
+    std::string directory;       <span class="c">// the folder it opens in</span>
+};</pre>
+            </div>
+        </div>
+    </div>
+
+    <div class="ref" id="ref-window">
+        <div class="head">
+            <h3><code>class Window</code> and <code>struct WindowOptions</code></h3>
+            <p>A window and its page. <code>App</code> is the main one; <code>App::openWindow()</code> opens more. Its actions work from any thread, its answers on the UI thread only (see <a href="#threads">Threads</a>). Not copyable.</p>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">Window&amp;</span> App::openWindow(WindowOptions options = {});
+<span class="ret">std::vector&lt;Window*&gt;</span> App::windows() const;
+<span class="ret">Window*</span> App::sender() const;</pre>
+            <div class="desc"><p>Opens a further window (before <code>run()</code>: with the main window); <code>navigate()</code> it to its page. Throws <code>std::runtime_error</code> where the platform can't open more windows. <code>windows()</code> lists the further windows open now. <code>sender()</code>: inside an exposed function or an <code>on()</code> handler while it runs, the window whose page sent the call or event (a further window when its page reached the app's function), <code>nullptr</code> elsewhere.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig">struct WindowOptions {
+    std::string title = "uniapi";
+    int width = 800, height = 600;          <span class="c">// the page's area, logical pixels</span>
+    int minWidth = 0, minHeight = 0;
+    int maxWidth = 0, maxHeight = 0;        <span class="c">// as AppOptions'</span>
+    std::string backgroundColor;            <span class="c">// as AppOptions'</span>
+    bool resizable = true, keepAspectRatio = false;
+    TitleBar titleBar = TitleBar::System;
+    bool showWhenReady = false, activate = true;
+    bool startHidden = false;   <span class="c">// as AppOptions::startHidden</span>
+    std::string rememberPlacement;  <span class="c">// as AppOptions::rememberPlacement: a name of its own</span>
+    bool owned = true;    <span class="c">// above the main window, minimised and closed with it, centred over it</span>
+    bool modal = false;   <span class="c">// the main window takes no input until it closes (implies owned)</span>
+};</pre>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">void</span> navigate(std::string_view path);
+<span class="ret">void</span> expose(std::string name, F fn);   <span class="ret">void</span> on(std::string event, handler);
+<span class="ret">void</span> call(function, args, done);       <span class="ret">void</span> emit(event, data);
+<span class="ret">CallAwaiter</span> callAsync(function, args);
+<span class="ret">Stream&amp;</span> stream(name, slotSize, slotCount);   <span class="ret">bool</span> sendDom(write);
+std::function&lt;void(const std::string&amp;)&gt; onConnect, onDisconnect;
+<span class="ret">bool</span> connected() const;   <span class="ret">const std::string&amp;</span> page() const;   <span class="ret">bool</span> sharedMemory() const;
+<span class="ret">void</span> setTitle(…);  setSize(…);  setFullscreen(…);  setTitleBar(…);  show();  hide();  setIcon(…);
+<span class="ret">bool</span> visible() const;</pre>
+            <div class="desc"><p>As described for <a href="#ref-app"><code>App</code></a>, for this window's page. A further window's page calls its own window's functions, and the app's where its window has none of that name; the same for events.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">void</span> close();
+<span class="ret">void</span> openDevTools();
+std::function&lt;bool(CloseReason reason)&gt; onCloseRequested;
+std::function&lt;void()&gt; onClosed;
+std::function&lt;void(const std::vector&lt;std::string&gt;&amp; paths, int x, int y)&gt; onFileDrop;
+<span class="ret">Size</span> size() const;   <span class="ret">std::optional&lt;Point&gt;</span> position() const;   <span class="ret">void</span> setPosition(int x, int y);   <span class="ret">void</span> center();
+<span class="ret">void</span> minimize();  maximize();  restore();   <span class="ret">bool</span> minimized() const;  maximized() const;
+<span class="ret">bool</span> setAlwaysOnTop(bool on);   <span class="ret">bool</span> alwaysOnTop() const;
+<span class="ret">std::string</span> placement() const;   <span class="ret">bool</span> setPlacement(std::string_view placement);
+std::function&lt;void()&gt; onPlacementChanged;
+<span class="ret">App&amp;</span> app() const;</pre>
+            <div class="desc"><p><code>close()</code> closes it as its close button does, but without asking <code>onCloseRequested</code> (the main window: the app, as <code>quit()</code>). <code>onCloseRequested</code> is asked when the user closes it (<code>CloseReason::Window</code>; on macOS <code>CloseReason::Quit</code> for the main window when the app is quit): <code>false</code> keeps it open (see <a href="#hiding">Hiding, showing and closing</a>). <code>onFileDrop</code>: files dropped on it, their paths and where in CSS pixels (see <a href="#desktop">Links, dropped files</a>). The placement members: see <a href="#placement">Window placement</a>. <code>openDevTools()</code> opens the web engine's developer tools on its page in a window of their own (WebKit's Web Inspector on Linux, WebView2's DevTools on Windows), with <code>AppOptions::devTools</code> on; without it, and on macOS (where Safari's Develop menu inspects the page), nothing happens, as before the window has its page (call it in a handler or from <code>onConnect</code> on); from another thread it posts itself. <code>onClosed</code> runs once it has closed, after its page went away: its close button, <code>close()</code>, or the app ending. A further window is destroyed once <code>onClosed</code> has returned, so drop every reference to it there.</p></div>
+        </div>
+    </div>
+
+    <div class="ref" id="ref-options">
+        <div class="head">
+            <h3><code>struct AppOptions</code></h3>
+            <p>Set the fields you need and pass the struct to <code>App</code>.</p>
+        </div>
+        <div class="table-wrap" style="border: 0; border-radius: 0 0 12px 12px;">
+            <table>
+                <thead><tr><th>Field</th><th>Default</th><th>Meaning</th></tr></thead>
+                <tbody>
+                    <tr><td class="k">std::string title</td><td class="k">"uniapi"</td><td>Window title</td></tr>
+                    <tr><td class="k">int width, height</td><td class="k">1000, 700</td><td>Initial size of the page's area, without title bar and borders, in logical pixels (scaled for the display)</td></tr>
+                    <tr><td class="k">int minWidth, minHeight</td><td class="k">0, 0</td><td>The smallest the user can make the page's area; 0 = no minimum</td></tr>
+                    <tr><td class="k">int maxWidth, maxHeight</td><td class="k">0, 0</td><td>The largest the user can make the page's area; 0 = no maximum. Maximising and full screen stop at it too where the system applies it to them; on Windows and GTK 3 <code>setSize</code> stops there as well (macOS limits the user's resizing only). Windows, macOS, and Linux with GTK 3; GTK 4 has no way to limit a window's size, so there it does nothing. In C: <code>max_width</code>, <code>max_height</code>.</td></tr>
+                    <tr><td class="k">std::string backgroundColor</td><td class="k">""</td><td>The colour behind the page, <code>"#rrggbb"</code> or <code>"#rgb"</code>: what the window shows before the page has drawn, at its edges while resizing, and through a page with no background of its own. Empty: the system's. A dark app names its page's colour here, so nothing lighter flashes; anything else is reported on stderr and ignored. In C: <code>background_color</code>.</td></tr>
+                    <tr><td class="k">bool resizable</td><td class="k">true</td><td>False: a fixed size, without resize border or maximize</td></tr>
+                    <tr><td class="k">bool keepAspectRatio</td><td class="k">false</td><td>Resizing keeps the page area's width:height (that of <code>width</code> and <code>height</code>). Windows, macOS, and Linux with GTK 3 under X11; Wayland and GTK 4 can't ask for it, so the window then resizes freely and a page that must keep its shape scales itself</td></tr>
+                    <tr><td class="k">bool fullscreen</td><td class="k">false</td><td>Start in full screen (see <code>App::setFullscreen</code>)</td></tr>
+                    <tr><td class="k">TitleBar titleBar</td><td class="k">System</td><td>Title bar and frame: the system's light or dark, or <code>Dark</code>/<code>Light</code> (see <code>App::setTitleBar</code>)</td></tr>
+                    <tr><td class="k">bool showWhenReady</td><td class="k">false</td><td>The window appears when the page calls <code>app.show()</code> (or <code>App::show()</code>), not when its first page has loaded (see <code>App::show</code>)</td></tr>
+                    <tr><td class="k">bool sharedMemory</td><td class="k">true</td><td>Use shared memory for streams where supported. False forces the fetch fallback, for testing it, and on Linux also leaves JavaScriptCore's Gigacage on. No effect on macOS, which always fetches.</td></tr>
+                    <tr><td class="k">bool activate</td><td class="k">true</td><td>Give the window keyboard focus when it opens (and when <code>show()</code> brings it back). False shows it without taking focus from the app you're in; the tests use this when run with <code>--exit</code>.</td></tr>
+                    <tr><td class="k">bool startHidden</td><td class="k">false</td><td>Open hidden: the window and its page are made and the page loads and runs, but nothing is on screen until <code>show()</code> (see <a href="#hiding">Hiding, showing and closing</a>). In C: <code>start_hidden</code>.</td></tr>
+                    <tr><td class="k">bool strictCalls</td><td class="k">false</td><td>Calls to exposed functions with more arguments than the function takes, or an object field its parameter's type hasn't (a misspelled name), are rejected instead of let through (see <a href="#calls">Exposing C++ functions</a>). In C: <code>strict_calls</code>.</td></tr>
+                    <tr><td class="k">bool devTools</td><td class="k">false</td><td>Every window's page can be inspected with the web engine's developer tools (console, elements, sources, network). Off for a program in people's hands; on while developing. Linux: WebKit's Web Inspector, "Inspect Element" in the page's right-click menu, always in a window of its own. Windows: WebView2's DevTools, F12 and "Inspect" in the page's menu. macOS: Safari's Develop menu lists the page (Safari &gt; Settings &gt; Advanced &gt; Show features for web developers). <code>Window::openDevTools()</code> opens them from the program. In C: <code>dev_tools</code>.</td></tr>
+                    <tr><td class="k">std::string rememberPlacement</td><td class="k">""</td><td>A name: the window opens where and as it was left (position, size, maximised), saved under that name when it closes, in the user's config folder (see <a href="#placement">Window placement</a>). <code>WindowOptions</code> has it too. In C: <code>remember_placement</code>.</td></tr>
+                    <tr><td class="k">std::string singleInstance</td><td class="k">""</td><td>An id unique to the app (<code>"org.example.mixer"</code>): only one instance runs per user; a second launch hands its arguments and working folder to the running one (<code>App::onSecondInstance</code>) and ends in the <code>App</code> constructor (<code>std::exit(0)</code>). Empty: as many as are started (see <a href="#desktop">Links, dropped files, the clipboard, one instance</a>). In C: <code>single_instance</code>.</td></tr>
+                    <tr><td class="k">std::string host</td><td class="k">"uniapi.example"</td><td>The made-up host the pages are served from. Avoid <code>.local</code> names: on Windows they trigger a multicast DNS lookup that stalls every page load by about 2 seconds.</td></tr>
+                    <tr><td class="k">std::string dataDirectory</td><td class="k">""</td><td>Where the web engine keeps its profile (cache, storage), UTF-8. Empty uses a per-user folder named after the executable: <code>%LOCALAPPDATA%\&lt;exe name&gt;</code> on Windows, WebKitGTK's XDG folders (<code>~/.local/share/&lt;exe name&gt;</code>, <code>~/.cache/&lt;exe name&gt;</code>) on Linux, <code>~/Library/WebKit/&lt;bundle id&gt;</code> (a plain program: its name) on macOS. WebKit on macOS takes no folder, only a profile identifier: there the path names a profile of its own (the same path, the same profile), whose files WebKit keeps in its own folder.</td></tr>
+                    <tr><td class="k">std::string browserArguments</td><td class="k">""</td><td><strong>Windows only</strong> (ignored on Linux and macOS). Extra command-line switches for the web engine (WebView2 is Chromium), space-separated, e.g. <code>"--proxy-server=host:8080"</code> or <code>"--disable-component-update"</code>. WebView2 ignores switches it reserves for itself. They apply when the engine starts for this profile: another app already running with the same <code>dataDirectory</code> keeps the switches it started with. In C: <code>browser_arguments</code>.</td></tr>
+                    <tr><td class="k">bool deferTasksAfterInput</td><td class="k">false</td><td><strong>Windows only</strong> (ignored on Linux and macOS). Chromium's default after a click or key holds the page's other tasks, C++'s messages among them, until the next frame is drawn, so the input's own response paints sooner. uniapi switches that off (<code>--disable-features=DeferRendererTasksAfterInput</code>, joined with a <code>--disable-features</code> in <code>browserArguments</code>): C++'s answer to a click reaches the page at once, a frame sooner (measured: drawn 13 ms after the press instead of 26). <code>true</code> keeps Chromium's way. In C: <code>defer_tasks_after_input</code>.</td></tr>
+                    <tr><td class="k">bool dmabufRenderer</td><td class="k">true</td><td><strong>Linux only</strong> (ignored on Windows and macOS). WebKit's DMA-BUF renderer, which hands the page's frames from the web process to the window as GPU buffers. <code>false</code> turns it off: the window shows about 0.2 s sooner on some GPUs (NVIDIA: hello at 0.38 s instead of 0.57 s), but every frame is then copied through memory: WebGL runs at about 40 % of its speed and animation costs CPU (a page of animated canvases: 0.67 of a core instead of 0.33). Worth it only for a page that hardly moves and must show at once. For the whole process, set before GTK starts (a dialog before <code>run()</code> is too late); a <code>WEBKIT_DISABLE_DMABUF_RENDERER</code> in the environment wins, and GTK 3 under X11 has the renderer off anyway. In C: <code>dmabuf_renderer</code>.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="ref" id="ref-reply">
+        <div class="head">
+            <h3><code>class Reply</code> and <code>struct Result</code></h3>
+            <p>The two halves of a call's answer: <code>Reply</code> sends one from C++, <code>Result</code> receives one in C++.</p>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">void</span> Reply::resolve(json value = nullptr) const;
+<span class="ret">void</span> Reply::reject(std::string message) const;</pre>
+            <span class="tag any">any thread</span>
+            <div class="desc"><p>Answers a call from JavaScript: the promise resolves with <code>value</code>, or rejects with an <code>Error</code> whose message is <code>message</code>. Copies of a <code>Reply</code> share one answer, and only the first answer counts. Answers to a page that has since closed are dropped. A call that is never answered leaves the page's promise pending.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig">struct Result {
+    bool ok = false;
+    json value;          <span class="c">// the function's return value, when ok</span>
+    std::string error;   <span class="c">// the error message otherwise</span>
+};</pre>
+            <div class="desc"><p>What <code>App::call</code> passes to <code>done</code>. A JavaScript <code>undefined</code> arrives as <code>null</code>.</p></div>
+        </div>
+    </div>
+
+    <div class="ref" id="ref-bytes">
+        <div class="head">
+            <h3><code>class Bytes</code></h3>
+            <p>Binary data in calls, results and events, in either direction. See <a href="#bytes">Binary data in calls and events</a>.</p>
+        </div>
+        <div class="entry">
+            <pre class="sig">Bytes();                                         <span class="c">// empty</span>
+explicit Bytes(std::vector&lt;uint8_t&gt; data);       <span class="c">// takes the vector</span>
+Bytes(const void* data, size_t size);            <span class="c">// copies</span>
+explicit Bytes(std::shared_ptr&lt;const std::vector&lt;uint8_t&gt;&gt; data);</pre>
+            <div class="desc"><p>Ways to make one to send to the page.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">const uint8_t*</span> data() const;
+<span class="ret">size_t</span> size() const;
+<span class="ret">bool</span> empty() const;
+<span class="ret">const uint8_t*</span> begin() const;   <span class="ret">const uint8_t*</span> end() const;
+<span class="ret">const std::vector&lt;uint8_t&gt;&amp;</span> vector() const;</pre>
+            <span class="tag any">any thread</span>
+            <div class="desc"><p>Read-only access to the bytes. Copies share one buffer, which lives as long as any copy does. A default-constructed <code>Bytes</code> is empty.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">void</span> from_json(const json&amp; value, Bytes&amp; bytes);   <span class="c">// value.get&lt;uniapi::Bytes&gt;()</span></pre>
+            <div class="desc"><p>What a <code>Bytes</code> parameter and <code>get&lt;uniapi::Bytes&gt;()</code> use. Throws <code>std::invalid_argument</code> if the value isn't binary data from the page (<code>expected binary data …</code>), or if the call was already answered or the event handler has returned (<code>the binary data is gone …</code>).</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">void</span> to_json(json&amp; value, const Bytes&amp; bytes);   <span class="c">// json(bytes), or a Bytes inside {...}</span></pre>
+            <div class="desc"><p>What putting a <code>Bytes</code> into JSON uses: a placeholder the page library turns into a <code>Uint8Array</code>, fetched once outside the JSON.</p></div>
+        </div>
+    </div>
+
+    <div class="ref" id="ref-stream">
+        <div class="head">
+            <h3><code>class Stream</code></h3>
+            <p>A pool of equally sized slots that C++ fills and hands to the page. Create one with <code>App::stream()</code>.</p>
+        </div>
+        <div class="entry">
+            <pre class="sig">struct Slot {
+    int index = -1;
+    uint8_t* data = nullptr;    <span class="c">// write here</span>
+    size_t capacity = 0;        <span class="c">// = slotSize()</span>
+};</pre>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">bool</span> acquire(Slot&amp; slot);</pre>
+            <div class="desc"><p>Reserves a free slot and fills in <code>slot</code>. Returns false while every slot is with the page, or when no page is connected; in the first case <code>onSlotFreed</code> fires when one comes back.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">bool</span> publish(const Slot&amp; slot, size_t size, const json&amp; meta = nullptr);</pre>
+            <div class="desc"><p>Hands the first <code>size</code> bytes of an acquired slot to the page, with <code>meta</code> as the handler's second argument. Returns false and frees the slot if <code>size</code> exceeds the slot size or no page is connected. Don't touch <code>slot.data</code> afterwards.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig">std::function&lt;void()&gt; onSlotFreed;</pre>
+            <div class="desc"><p>Fires once when the page hands back a slot after <code>acquire()</code> had failed. Set it to your send function to stream as fast as the page keeps up.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">const std::string&amp;</span> name() const;
+<span class="ret">size_t</span>   slotSize() const;
+<span class="ret">int</span>      slotCount() const;
+<span class="ret">bool</span>     shared() const;
+<span class="ret">uint64_t</span> delivered() const;</pre>
+            <div class="desc"><p><code>shared()</code> is true for shared memory and false for fetch mode, including when the current page fell back to fetching this stream (with several windows: when any page it reaches fetches). <code>delivered()</code> counts slots the page has handed back (by every page they went to); sample it once a second for a frame rate.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">void</span> addWindow(Window&amp; window);
+<span class="ret">void</span> removeWindow(Window&amp; window);
+<span class="ret">std::vector&lt;Window*&gt;</span> windows() const;</pre>
+            <div class="desc"><p>Sends the stream to another <a href="#ref-window">window</a>'s page too, under the same name: one set of slots, written once, read by every page it reaches. A slot comes back once every page it went to has handed it back, so the slowest page sets the pace; a page that isn't connected holds nothing up. <code>addWindow</code> throws <code>std::invalid_argument</code> if that window has a stream of this name already, or belongs to another App. <code>removeWindow</code>: that page gets no more frames (it hands back the ones it has); any window, the stream's own too, though the stream still belongs to that one. Replacing the stream keeps the windows it reaches; a window closing leaves it. In C: <code>uniapi_stream_add_window</code>, <code>uniapi_stream_remove_window</code>.</p></div>
+        </div>
+    </div>
+
+    <div class="ref" id="ref-dom">
+        <div class="head">
+            <h3><code>class DomCommandWriter</code></h3>
+            <p>Writes one DOM command list. <code>App::sendDom()</code> gives you one that writes straight into a stream slot. Include <code>&lt;uniapi/dom.hpp&gt;</code> to use it on its own.</p>
+        </div>
+        <div class="entry">
+            <pre class="sig">static constexpr uint32_t kBody = 0;   <span class="c">// document.body</span>
+DomCommandWriter(uint8_t* data, size_t capacity);</pre>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">void</span> Bind(uint32_t id, std::string_view selector);
+<span class="ret">void</span> Create(uint32_t id, std::string_view tag);
+<span class="ret">void</span> Append(uint32_t parent, uint32_t child);
+<span class="ret">void</span> Remove(uint32_t id);
+<span class="ret">void</span> Clear(uint32_t id);
+<span class="ret">void</span> SetText(uint32_t id, std::string_view text);
+<span class="ret">void</span> SetAttribute(uint32_t id, std::string_view name, std::string_view value);
+<span class="ret">void</span> SetStyle(uint32_t id, std::string_view property, std::string_view value);
+<span class="ret">void</span> ToggleClass(uint32_t id, std::string_view name, bool on);</pre>
+            <div class="desc"><p>One method per command; see the <a href="#dom">command table</a>. Strings are UTF-8.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">size_t</span>   size() const;
+<span class="ret">uint32_t</span> commands() const;
+<span class="ret">bool</span>     overflowed() const;</pre>
+            <div class="desc"><p>Bytes and commands written so far, and whether a command didn't fit and was left out. Commands before that one are complete and are still sent.</p></div>
+        </div>
+    </div>
+
+    <div class="ref" id="ref-assets">
+        <div class="head">
+            <h3>Assets and helpers</h3>
+            <p>From <code>assets.hpp</code>, and four small platform helpers.</p>
+        </div>
+        <div class="entry">
+            <pre class="sig">struct Asset { const char* path; const unsigned char* data; size_t size; size_t packedSize; };
+struct AssetTable {
+    const Asset* items; size_t count;
+    const Asset* find(std::string_view path) const;   <span class="c">// or nullptr</span>
+};
+struct AssetData { const unsigned char* data; size_t size; };
+AssetData assetData(const Asset&amp; asset);
+#define UNIAPI_ASSETS(name)   <span class="c">// declares: extern const uniapi::AssetTable name</span></pre>
+            <div class="desc"><p>The table <code>uniapi_embed()</code> generates. Paths are relative to the embedded folder, with forward slashes: <code>index.html</code>, <code>css/app.css</code>. <code>find()</code> looks one up, e.g. an icon for <code>App::setIcon</code>. Write <code>UNIAPI_ASSETS(name);</code> at namespace scope, outside any namespace.</p><p>A file <code>uniapi_embed()</code> compressed has <code>packedSize</code> above 0 and <code>data</code> holds that many bytes of zlib; <code>size</code> is always the file's own size. Read an embedded file's bytes with <code>assetData(asset)</code>: <code>data</code> itself for a file stored as it is, else the file inflated on first use and kept for the life of the program (safe from any thread); <code>{nullptr, 0}</code> if it can't be inflated, which only a damaged build causes. <code>serve()</code> does this for you.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">std::string</span> executablePath();
+<span class="ret">std::vector&lt;std::string&gt;</span> arguments();
+<span class="ret">std::string</span> commandLine();
+<span class="ret">void</span>        alert(std::string_view title, std::string_view message);</pre>
+            <div class="desc"><p>The program's full path; its arguments, without the program itself, one per entry; the same joined with spaces; all UTF-8. Prefer <code>arguments()</code> to <code>main()</code>'s <code>argv</code> on Windows, where <code>argv</code> uses the ANSI code page and can't hold every character a path may contain. <code>alert</code> shows a modal message box for errors before or outside the page.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">void</span> openURL(std::string_view url);
+<span class="ret">void</span> openPath(std::string_view path);
+<span class="ret">void</span> revealPath(std::string_view path);</pre>
+            <div class="desc"><p>Open things with the system, from any thread: a URL with a scheme as the system opens it (a web page in the default browser, <code>mailto:</code> in the mail app); a file with its default app, a folder in the file manager; the file manager showing a file or folder, selected where it can (Finder, Explorer; on Linux through <code>org.freedesktop.FileManager1</code>, else its folder opens). Paths are UTF-8, relative ones to the working folder, and must exist. Each throws <code>std::runtime_error</code> saying why when it can't. Linux: <code>xdg-open</code>; macOS: <code>open</code>; Windows: <code>ShellExecute</code> and Explorer.</p></div>
+        </div>
+    </div>
+
+    <div class="ref" id="ref-cmake">
+        <div class="head">
+            <h3>CMake</h3>
+            <p>Add the repository with <code>add_subdirectory</code> and link the <code>uniapi</code> target. CMake downloads nlohmann/json, miniz (zlib for embedded files), esbuild and tdewolff/minify (to minify them; and, on Windows, the WebView2 SDK) the first time you configure. On Linux it also builds the web process extension into <code>build/uniapi-webext/</code>, for shared memory; <code>uniapi_install()</code> installs it where the app finds it. On macOS the library builds as Objective-C++ in one file (the backend) and links Cocoa and WebKit; the oldest macOS is set by <code>CMAKE_OSX_DEPLOYMENT_TARGET</code> (14.0 by default, the minimum).</p>
+        </div>
+        <div class="entry">
+            <pre class="sig">uniapi_install(&lt;target&gt; [DESTINATION &lt;dir&gt;] [NAME &lt;name&gt;] [ICON &lt;file.svg|file.png&gt;] [BUNDLE_ID &lt;id&gt;] [VERSION &lt;v&gt;])</pre>
+            <div class="desc"><p>Installs the app for <code>cmake --install</code> so that it runs from wherever it is installed. Windows: <code>&lt;prefix&gt;/bin/&lt;app&gt;.exe</code> and nothing else. Linux: <code>&lt;prefix&gt;/bin/&lt;app&gt;</code> plus the extension in <code>&lt;prefix&gt;/lib/&lt;app&gt;/uniapi-webext/</code>, and the desktop entry <code>&lt;prefix&gt;/share/applications/&lt;app&gt;.desktop</code> with its icon in <code>&lt;prefix&gt;/share/icons/hicolor/</code>: the desktop matches the entry to the window's app id (the executable's name) for the icon in the title bar and taskbar. <code>NAME</code> is the name the menu shows (default: the executable's); <code>ICON</code> an SVG or PNG (default: the uniapi logo). The desktop reads entries from <code>~/.local</code> and <code>/usr/local</code>. <code>DESTINATION</code> defaults to <code>bin</code>; <code>DESTINATION .</code> makes a self-contained folder, with the extension in <code>uniapi-webext/</code> next to the executable and no desktop entry. macOS: <code>&lt;prefix&gt;/&lt;NAME&gt;.app</code> (<code>DESTINATION</code> defaults to <code>.</code> there, so <code>--prefix ~/Applications</code> works): the program in <code>Contents/MacOS/</code>, an <code>Info.plist</code> (<code>BUNDLE_ID</code>, default <code>org.uniapi.&lt;app&gt;</code>; <code>VERSION</code>, default 1.0) and an <code>.icns</code> made from <code>ICON</code> during the build; the bundle is signed ad hoc after installing. The build folder keeps plain programs.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig">uniapi_embed(&lt;target&gt; &lt;name&gt; &lt;directory&gt; [NO_MINIFY] [NO_COMPRESS])
+UNIAPI_EMBED_MINIFY     ON
+UNIAPI_ESBUILD          ""   <span class="c">// another esbuild than the fetched one</span>
+UNIAPI_MINIFY           ""   <span class="c">// another tdewolff/minify than the fetched one</span>
+UNIAPI_EMBED_COMPRESS   ON
+UNIAPI_EMBED_INCBIN     ON with GCC/Clang on Linux (when it works there), else OFF</pre>
+            <div class="desc"><p>Compiles every file under <code>directory</code> into <code>target</code> as an <code>AssetTable</code> called <code>name</code>, and for C code an accessor <code>uniapi_assets_&lt;name&gt;()</code> (declare it with <code>UNIAPI_C_ASSETS(name)</code>). Added or removed files are picked up on the next build, and edited files are embedded again. Works on every platform.</p><p>A tool built with uniapi (<code>uniapi_embed_tool</code>, <code>tools/embed</code>) writes the generated file at build time, in milliseconds per megabyte. <code>.js</code> and <code>.css</code> files are first minified with esbuild (fetched and checked against its published hash, version 0.24.0; <code>UNIAPI_ESBUILD</code> names another): comments, whitespace and long local names go, nothing else changes (no bundling, no new syntax), so the engine parses less and less is stored; <code>.html</code>/<code>.htm</code>, <code>.svg</code> and <code>.json</code> with tdewolff/minify (version 2.24.21, fetched and checked the same way; <code>UNIAPI_MINIFY</code> names another; HTML keeps its document and end tags; no build for Windows on ARM64, where those files are embedded as written). A syntax error stops the build. <code>NO_MINIFY</code> or <code>UNIAPI_EMBED_MINIFY=OFF</code> embeds everything as written, e.g. to read it in the developer tools. Files that shrink by a tenth or more are then stored zlib-compressed and inflated once when first served, by the app (<code>assetData()</code>, on the thread that serves page requests; the engine gets the plain bytes) (formats compressed already, such as images, fonts and media, are left as they are); <code>NO_COMPRESS</code> turns that off for one call, <code>UNIAPI_EMBED_COMPRESS=OFF</code> for all. The bytes are C++ arrays, which MSVC compiles at about a megabyte a second, or, with <code>UNIAPI_EMBED_INCBIN</code> (GCC or Clang on Linux, on when a test program using it compiles, links and runs), the assembler's <code>.incbin</code>, with no compile time for the data. Measured with MSVC: a 10 MB JavaScript bundle embeds in 0.7 s, compiles in about 3 s and adds 2.5 MB to the program. Cross-compiling, where the tool can't run on the build machine, a CMake script writes uncompressed arrays instead, at about 3 s per megabyte.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig">uniapi_icon(&lt;target&gt; [&lt;icon.ico&gt;] [NAME &lt;name&gt;] [DESCRIPTION &lt;text&gt;] [VERSION &lt;1.2.3&gt;]
+            [COMPANY &lt;name&gt;] [COPYRIGHT &lt;text&gt;] [COMMENTS &lt;text&gt;])</pre>
+            <div class="desc"><p>Windows: compiles the icon into the program as its first icon resource, so Explorer shows it on the <code>.exe</code>, the taskbar on the running program, and every uniapi window in its title bar (the window class takes it; <code>setIcon()</code> still gives a window its own). <code>icon.ico</code> defaults to the uniapi logo, <code>doc/logo/uniapi.ico</code> (16, 32, 48 and 256 px). Elsewhere it does nothing: on Linux a window's icon comes from <code>setIcon()</code> under GTK 3 (X11), and from the app's <code>.desktop</code> file and icon theme under GTK 4 or Wayland, which <code>uniapi_install()</code> installs. On macOS it does nothing either: an app's icon is its bundle's, which <code>uniapi_install()</code> makes.</p><p>The keywords, each optional, also write the Windows program's version resource: what Explorer shows under Properties &gt; Details (<code>NAME</code> as Product name, <code>DESCRIPTION</code> as File description and Task Manager's name for the program, <code>NAME</code> if not given, <code>VERSION</code> as File and Product version, <code>COMPANY</code>, <code>COPYRIGHT</code>, <code>COMMENTS</code>). Without them the program gets its icon alone. <code>VERSION</code> is one to four numbers of 0 to 65535 (<code>1.2.3</code>); anything else stops the configure on every platform, and <code>""</code> leaves it out. The texts are UTF-8, stored as US English.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig">UNIAPI_BUILD_EXAMPLES   ON
+UNIAPI_BUILD_TESTS      ON
+UNIAPI_STREAM_EMBED_WEB ON
+UNIAPI_GTK              auto</pre>
+            <div class="desc"><p>Build the examples (<code>hello</code>, <code>hello_c</code>, <code>uniapi_stream</code>, <code>uniapi_logo</code>, <code>uniapi_notify</code>, <code>uniapi_tray</code>), and build the tests: the API test and the C API test, registered with CTest, the two checker apps for the checks by hand, and the latency probe (<code>uniapi_latency</code>, see <a href="#latency">Latency</a>). Set both <code>OFF</code> when using uniapi in your own project. The third option compiles the demo's pages in; <code>OFF</code> reads them from the source folder so you can edit and reload. <code>UNIAPI_GTK</code> (Linux) picks the toolkit: <code>auto</code> takes GTK 4 + <code>webkitgtk-6.0</code> when installed and GTK 3 + <code>webkit2gtk-4.1</code> otherwise; <code>4</code> or <code>3</code> insists on one.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig">add_executable(myapp WIN32 main.cpp)
+target_link_options(myapp PRIVATE /ENTRY:mainCRTStartup)   <span class="c"># MSVC</span></pre>
+            <div class="desc"><p>On Windows, <code>WIN32</code> gives a window without a console. With MSVC, the linker option lets that program start at a portable <code>int main()</code>, as the demo does.</p></div>
+        </div>
+    </div>
+</section>
+
+<!-- ============================================================ JS REFERENCE -->
+<section id="ref-js">
+    <h2>JavaScript reference</h2>
+    <div class="prose">
+        <p>Load the library with <code>&lt;script src="/uniapi/uniapi.js"&gt;&lt;/script&gt;</code>; the app serves it. It defines one global, <code>uniapi</code>, and works the same on every platform.</p>
+    </div>
+
+    <div class="ref">
+        <div class="entry">
+            <pre class="sig">uniapi.connect({ page = 'page', regionTimeout = 3000 } = {}) <span class="ret">→ app</span></pre>
+            <div class="desc"><p>Connects this page to the app and returns <code>app</code> at once. <code>page</code> names the page for C++ (<code>onConnect</code>, <code>App::page()</code>). <code>regionTimeout</code> is how many milliseconds to wait for shared memory regions before falling back to fetching (see <a href="#streams">Streams</a>). Calls and events made before the connection is ready wait for it, so C++ sees them after <code>onConnect</code>. Throws if the page is not running inside a uniapi app, if it was already called on this page, or in an iframe (it belongs to the top-level page). Strings holding half an emoji (a lone surrogate, e.g. from <code>slice()</code>) reach C++ with U+FFFD in place of the half.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig">app.native.&lt;name&gt;(...args) <span class="ret">→ Promise</span></pre>
+            <div class="desc"><p>Calls the C++ function exposed as <code>name</code>. Arguments must be JSON-serialisable, except that binary values (<code>ArrayBuffer</code>, typed arrays, <code>DataView</code>, <code>Blob</code>) may appear anywhere and arrive as <a href="#ref-bytes"><code>uniapi::Bytes</code></a>; a <code>uniapi::Bytes</code> in the result arrives as a <code>Uint8Array</code>. Resolves with the return value; rejects with an <code>Error</code> carrying the C++ exception's message, a conversion error, or <code>there is no C++ function named "name"</code>.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig">app.call(name, ...args) <span class="ret">→ Promise</span></pre>
+            <div class="desc"><p>The same as <code>app.native[name](...args)</code>.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig">app.expose({ name: fn, … }) <span class="ret">→ app</span>
+app.unexpose(...names) <span class="ret">→ app</span></pre>
+            <div class="desc"><p>Registers functions C++ can call with <code>App::call</code>. A function may return a value or a Promise; a thrown error or rejection becomes <code>Result::error</code>. <code>undefined</code> is sent as <code>null</code>. Binary values in the arguments arrive as <code>Uint8Array</code>s, and binary values in the return value reach C++ as <code>uniapi::Bytes</code>. A name registered again replaces the function. <code>unexpose</code> takes functions back: a call to one then fails as a call to a name never registered does; one that is running finishes its call.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig">app.on(event, (data) =&gt; …) <span class="ret">→ app</span>
+app.off(event, handler?) <span class="ret">→ app</span>
+app.emit(event, data)</pre>
+            <div class="desc"><p>Handles events from <code>App::emit</code> (any number of handlers per event), and sends events to <code>App::on</code>. <code>data</code> may contain binary values, as for calls, in both directions; if moving them fails the event is dropped and the error logged. <code>off</code> stops a handler, or without one every handler of the event; a handler may call it while the event is being delivered (the handlers of that delivery still all run).</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig">app.stream(name, (bytes, meta) =&gt; …) <span class="ret">→ app</span>
+app.unstream(name) <span class="ret">→ app</span></pre>
+            <div class="desc"><p>Receives a stream's slots. <code>bytes</code> is a <code>Uint8Array</code> of exactly the published size; <code>meta</code> is the JSON passed to <code>publish()</code>. The slot goes back to C++ when the handler returns, or when its returned Promise settles, so <code>await</code> inside it holds the slot. Copy what you keep with <code>bytes.slice()</code>. Errors are logged and the slot is still handed back. <code>unstream</code> stops receiving it: the handler isn't called again (one that is running finishes), and the frames that still arrive are handed back unread.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig">app.show()        <span class="ret">void</span></pre>
+            <div class="desc"><p>Shows the window, kept invisible until the page is drawn when C++ set <code>AppOptions::showWhenReady</code>: call it once the page has built itself (after two animation frames, so it is on screen). Without that option the window appears when the page has loaded, and this does nothing.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig">app.ready         <span class="ret">Promise&lt;app&gt;</span>
+app.capabilities  <span class="ret">{ sharedMemory: boolean }</span></pre>
+            <div class="desc"><p><code>ready</code> resolves once the page has mapped its shared regions (or given up on them after <code>regionTimeout</code>) and told C++, whose <code>onConnect</code> runs as that message arrives. <code>capabilities.sharedMemory</code> is filled in when the app's welcome arrives; read it after <code>ready</code>.</p></div>
+        </div>
+    </div>
+</section>
+
+<!-- ============================================================ C REFERENCE -->
+<section id="ref-c">
+    <h2>C reference</h2>
+    <div class="prose">
+        <p><code>&lt;uniapi/uniapi.h&gt;</code> is the same library for C (C99) and for any language that can call C functions. It is part of the <code>uniapi</code> target; link it from a C program as from C++. <code>examples/hello_c</code> is the hello example in C, and <code>tests/c_api</code> exercises every part.</p>
+        <ul>
+            <li>Objects are opaque handles; callbacks are function pointers with a <code>void* user</code> you choose.</li>
+            <li>JSON travels as UTF-8 text. The <code>uniapi_json_*</code> helpers read numbers, strings and booleans by JSON pointer (<code>"/0"</code>, <code>"/user/name"</code>) and quote strings, so small programs need no JSON library.</li>
+            <li>Binary data from the page arrives in a <code>uniapi_bytes</code> list, and in the JSON each value is <code>{"$bytes": index}</code>. To send binary data, put <code>uniapi_bytes_json(data, size)</code> into the JSON.</li>
+            <li>Strings the library returns are freed with <code>uniapi_free</code> (lists with <code>uniapi_free_list</code>). Failing functions return 0 or NULL and leave a message in <code>uniapi_last_error()</code>; no C++ exception ever reaches C.</li>
+            <li>Threads as in C++: functions that only do something post themselves from another thread; those that answer something return 0 or NULL there, <code>uniapi_last_error()</code> naming them; <code>uniapi_on_ui_thread</code> says which. <code>uniapi_post</code> and <code>uniapi_reply_*</code> work from any thread.</li>
+        </ul>
+    </div>
+<pre>static void add(void* user, const char* args, const uniapi_bytes* bytes, uniapi_reply* reply) {
+    double a = 0, b = 0;
+    if (!uniapi_json_get_number(args, "/0", &amp;a) || !uniapi_json_get_number(args, "/1", &amp;b)) {
+        uniapi_reply_reject(reply, "add needs two numbers");
+        return;
+    }
+    char result[64];
+    snprintf(result, sizeof result, "%g", a + b);
+    uniapi_reply_resolve(reply, result);       <span class="c">// answers once, also later or from another thread</span>
+}
+
+UNIAPI_C_ASSETS(my_web);                       <span class="c">// from uniapi_embed(myapp my_web web)</span>
+
+int main(void) {
+    uniapi_options options;
+    uniapi_options_init(&amp;options);
+    options.title = "My app";
+    uniapi_app* app = uniapi_app_new(&amp;options);
+    uniapi_serve(app, uniapi_assets_my_web());
+    uniapi_expose(app, "add", add, NULL);
+    uniapi_navigate(app, "/index.html");
+    int code = uniapi_run(app);
+    uniapi_app_free(app);
+    return code;
+}</pre>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Area</th><th>Functions (C++ counterpart)</th></tr></thead>
+            <tbody>
+                <tr><td>App</td><td><code>uniapi_options_init</code>, <code>uniapi_app_new</code>, <code>uniapi_app_free</code>, <code>uniapi_run</code>, <code>uniapi_quit</code>, <code>uniapi_serve</code>, <code>uniapi_serve_directory</code>, <code>uniapi_navigate</code> (<code>App</code>, <code>AppOptions</code>)</td></tr>
+                <tr><td>Page calls C</td><td><code>uniapi_expose</code>, <code>uniapi_reply_resolve</code>, <code>uniapi_reply_reject</code> (<code>expose</code>, <code>Reply</code>)</td></tr>
+                <tr><td>C calls the page</td><td><code>uniapi_call</code> (<code>call</code>)</td></tr>
+                <tr><td>Events</td><td><code>uniapi_on</code>, <code>uniapi_emit</code></td></tr>
+                <tr><td>Binary data</td><td><code>uniapi_bytes_count</code>, <code>uniapi_bytes_data</code>, <code>uniapi_bytes_json</code> (<code>Bytes</code>)</td></tr>
+                <tr><td>Connection</td><td><code>uniapi_on_connect</code>, <code>uniapi_on_disconnect</code>, <code>uniapi_connected</code>, <code>uniapi_shared_memory</code></td></tr>
+                <tr><td>Window and loop</td><td><code>uniapi_set_title</code>, <code>uniapi_set_size</code>, <code>uniapi_set_fullscreen</code>, <code>uniapi_fullscreen</code>, <code>uniapi_set_title_bar</code>, <code>uniapi_title_bar</code>, <code>uniapi_show</code>, <code>uniapi_hide</code>, <code>uniapi_visible</code>, <code>uniapi_on_close_requested</code>, <code>uniapi_set_icon</code>, <code>uniapi_every</code>, <code>uniapi_cancel</code>, <code>uniapi_post</code>, <code>uniapi_save_file_dialog</code>, <code>uniapi_open_file_dialog</code>, and with all the choices (<code>uniapi_dialog_options</code>: several <code>uniapi_file_filter</code>s, the folder it opens in) <code>uniapi_save_file_dialog_with</code>, <code>uniapi_open_file_dialog_with</code></td></tr>
+                <tr><td>Tray (<code>uniapi/tray.h</code>, <code>uniapi_tray</code>)</td><td><code>uniapi_tray_available</code>, <code>uniapi_tray_new</code>, <code>_free</code>, <code>_set_menu</code> (<code>uniapi_tray_item</code>: label, <code>UNIAPI_TRAY_SEPARATOR</code>/<code>_CHECKED</code>/<code>_DISABLED</code>, callback), <code>_set_icon</code>, <code>_set_tooltip</code>, <code>_on_click</code> (<code>uniapi::tray::Tray</code>)</td></tr>
+                <tr><td>Notifications</td><td><code>uniapi_notify</code>, <code>uniapi_on_notification_clicked</code> (<code>notify</code>, <code>onNotificationClicked</code>)</td></tr>
+                <tr><td>The desktop</td><td><code>uniapi_on_external_url</code>, <code>uniapi_on_file_drop</code>, <code>uniapi_on_second_instance</code>, <code>uniapi_clipboard_text</code>, <code>uniapi_set_clipboard_text</code>, <code>uniapi_open_url</code>, <code>uniapi_open_path</code>, <code>uniapi_reveal_path</code>, <code>uniapi_web_engine</code> (<code>onExternalURL</code>, <code>onFileDrop</code>, <code>singleInstance</code>...)</td></tr>
+                <tr><td>Streams</td><td><code>uniapi_stream_create</code>, <code>uniapi_stream_acquire</code>, <code>uniapi_stream_publish</code>, <code>uniapi_stream_on_slot_freed</code>, <code>uniapi_stream_shared</code>, <code>uniapi_stream_delivered</code>, <code>uniapi_stream_add_window</code>, <code>uniapi_stream_remove_window</code> (<code>Stream</code>)</td></tr>
+                <tr><td>More windows</td><td><code>uniapi_window_options_init</code>, <code>uniapi_open_window</code>, <code>uniapi_main_window</code>, <code>uniapi_window_close</code>, <code>_open_dev_tools</code>, <code>_on_closed</code>, <code>_on_close_requested</code>, <code>_on_file_drop</code>, <code>_navigate</code>, <code>_expose</code>, <code>_on</code>, <code>_emit</code>, <code>_call</code>, <code>_on_connect</code>, <code>_on_disconnect</code>, <code>_connected</code>, <code>_shared_memory</code>, <code>_stream_create</code>, <code>_send_dom</code>, <code>_set_title</code>, <code>_set_size</code>, <code>_set_fullscreen</code>, <code>_fullscreen</code>, <code>_set_title_bar</code>, <code>_show</code>, <code>_hide</code>, <code>_visible</code>, <code>_set_icon</code>, <code>_size</code>, <code>_position</code>, <code>_set_position</code>, <code>_center</code>, <code>_minimize</code>, <code>_maximize</code>, <code>_restore</code>, <code>_minimized</code>, <code>_maximized</code>, <code>_set_always_on_top</code>, <code>_always_on_top</code>, <code>_placement</code>, <code>_set_placement</code>, <code>_on_placement_changed</code> (<code>Window</code>, <code>WindowOptions</code>)</td></tr>
+                <tr><td>DOM lists</td><td><code>uniapi_send_dom</code>, <code>uniapi_dom_bind</code>, <code>_create</code>, <code>_append</code>, <code>_remove</code>, <code>_clear</code>, <code>_set_text</code>, <code>_set_attribute</code>, <code>_set_style</code>, <code>_toggle_class</code>, <code>_overflowed</code> (<code>DomCommandWriter</code>)</td></tr>
+                <tr><td>JSON</td><td><code>uniapi_json_string</code>, <code>uniapi_json_get</code>, <code>uniapi_json_get_string</code>, <code>uniapi_json_get_number</code>, <code>uniapi_json_get_bool</code></td></tr>
+                <tr><td>Helpers</td><td><code>uniapi_executable_path</code>, <code>uniapi_arguments</code>, <code>uniapi_alert</code>, <code>uniapi_free</code>, <code>uniapi_free_list</code>, <code>uniapi_last_error</code></td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="prose">
+        <p>Each function is documented in <code>include/uniapi/uniapi.h</code>; behaviour matches the C++ function it wraps.</p>
+    </div>
+</section>
+
+<!-- ============================================================ ERRORS -->
+<section id="errors">
+    <h2>Errors and edge cases</h2>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Situation</th><th>What happens</th></tr></thead>
+            <tbody>
+                <tr class="group"><td colspan="2">JavaScript calls C++</td></tr>
+                <tr><td>No C++ function with that name</td><td>Rejects: <code>there is no C++ function named "x"</code></td></tr>
+                <tr><td>Too few arguments for a typed function</td><td>Rejects: <code>expected N argument(s)</code></td></tr>
+                <tr><td>An argument has the wrong type</td><td>Rejects with nlohmann/json's message, e.g. <code>type must be number, but is string</code></td></tr>
+                <tr><td>The C++ function throws</td><td>Rejects with <code>e.what()</code>; <code>unknown C++ exception</code> for non-standard exceptions</td></tr>
+                <tr><td>A <code>Reply</code> is answered twice</td><td>The second answer is ignored</td></tr>
+                <tr><td>A <code>Reply</code> is answered after the page closed or reloaded</td><td>Dropped; the new page never sees it</td></tr>
+                <tr class="group"><td colspan="2">C++ calls JavaScript</td></tr>
+                <tr><td>No page connected</td><td><code>done</code> runs at once: <code>no page is connected</code></td></tr>
+                <tr><td>No exposed function with that name</td><td><code>Result::error</code>: <code>there is no JavaScript function named "x"</code></td></tr>
+                <tr><td>The function throws or its Promise rejects</td><td><code>Result::error</code> is the error's message</td></tr>
+                <tr><td>The page goes away with calls pending</td><td>Each <code>done</code> runs with <code>the page closed</code>, before <code>onDisconnect</code></td></tr>
+                <tr class="group"><td colspan="2">Streams and DOM lists</td></tr>
+                <tr><td>Shared regions don't reach the page while it connects</td><td>After <code>regionTimeout</code> the page connects anyway and fetches every stream; <code>sharedMemory()</code> becomes false. A warning is logged in the page's console</td></tr>
+                <tr><td>A later stream's regions don't reach the page</td><td>Its first frame waits <code>regionTimeout</code>, then that stream is fetched from then on; its <code>shared()</code> becomes false</td></tr>
+                <tr><td><code>acquire()</code> with every slot busy</td><td>Returns false; <code>onSlotFreed</code> fires when one comes back</td></tr>
+                <tr><td><code>acquire()</code> or <code>publish()</code> without a page</td><td>Returns false; a slot being written is freed by <code>publish()</code></td></tr>
+                <tr><td>The page handler throws</td><td>Logged in the page's console; the slot is still handed back</td></tr>
+                <tr><td>The page goes away with slots out</td><td>Every slot becomes Free</td></tr>
+                <tr><td>A DOM command fails (unknown ID, selector matches nothing)</td><td>The rest of that list is skipped; logged in the page's console</td></tr>
+                <tr><td>A DOM list is larger than 64 KB</td><td>Commands that don't fit are left out; <code>overflowed()</code> is true</td></tr>
+                <tr class="group"><td colspan="2">Binary data in calls and events</td></tr>
+                <tr><td>The page can't fetch a <code>Bytes</code> C++ sent (e.g. the page is reloading)</td><td>A result rejects the call in the page; a call from C++ fails with that error in its <code>done</code>; an event is dropped and logged</td></tr>
+                <tr><td>A <code>Bytes</code> is put into JSON that is never sent</td><td>Its data is kept for at most a minute (or until the page goes away)</td></tr>
+                <tr><td>A <code>Bytes</code> parameter gets something else</td><td>Rejects: <code>expected binary data (an ArrayBuffer, typed array, DataView or Blob)</code></td></tr>
+                <tr><td><code>get&lt;Bytes&gt;()</code> after the call was answered or the event handler returned</td><td>Throws: <code>the binary data is gone …</code>; take it (or a <code>Bytes</code> copy) before answering</td></tr>
+                <tr><td>Sending the data fails (e.g. the page is reloading)</td><td>The call rejects in the page (<code>sending binary data failed …</code>); an event is dropped and logged</td></tr>
+                <tr><td>Data arrives but its call never does</td><td>Freed when the page goes away</td></tr>
+                <tr class="group"><td colspan="2">Events</td></tr>
+                <tr><td>Nobody listens for an event</td><td>Dropped silently, in both directions</td></tr>
+                <tr><td><code>App::emit</code> without a page</td><td>Dropped</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- ============================================================ PROTOCOL -->
+<section id="protocol">
+    <h2>Protocol messages</h2>
+    <div class="prose">
+        <p>You never send these yourself; they're listed for debugging and for porting to a new platform. Each message is one JSON text whose <code>t</code> field says what it is. The source of truth is the comment at the top of <code>src/core/app.cpp</code>.</p>
+        <p>Every stream gets a new <code>id</code> when it is created or replaced, so a late message about a replaced stream can't touch its successor. Shared regions travel separately from messages and can arrive before or after the messages that mention them; <code>uniapi.js</code> keeps them by stream id and waits for a region it doesn't have yet.</p>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Direction</th><th>Message</th><th>Meaning</th></tr></thead>
+            <tbody>
+                <tr><td class="dir">page → app</td><td class="k">hello {page}</td><td>The page called <code>uniapi.connect()</code>; starts a new connection</td></tr>
+                <tr><td class="dir">app → page</td><td class="k">welcome {sharedMemory, streams, session}</td><td>The answer to <code>hello</code>; <code>session</code> names this connection's uploads. Lists each stream's <code>name, id, slots, shared</code>. In shared mode one region per slot is shared too, tagged <code>{stream, id, slot}</code></td></tr>
+                <tr><td class="dir">page → app</td><td class="k">ready {sharedMemory?}</td><td>Every shared region is mapped, or with <code>sharedMemory: false</code> the page gave up waiting and fetches; C++ runs <code>onConnect</code></td></tr>
+                <tr><td class="dir">page → app</td><td class="k">POST /uniapi/upload/&lt;session&gt;/&lt;n&gt;</td><td>Not a message: a request carrying one binary value, which the message that follows refers to as <code>{"$uniapi.upload": n}</code></td></tr>
+                <tr><td class="dir">page → app</td><td class="k">GET /uniapi/download/&lt;token&gt;</td><td>Not a message: fetches one <code>Bytes</code> C++ sent, once, for a placeholder <code>{"$uniapi.download": "&lt;token&gt;"}</code></td></tr>
+                <tr><td class="dir">both</td><td class="k">call {id, fn, args, uploads? | downloads?}</td><td>Run the named function; <code>args</code> is an array. <code>uploads: true</code> (page → app) means it contains upload placeholders, <code>downloads: true</code> (app → page) download placeholders</td></tr>
+                <tr><td class="dir">both</td><td class="k">result {id, ok, value | error, uploads? | downloads?}</td><td>The answer to the call with that <code>id</code>; placeholders as for <code>call</code></td></tr>
+                <tr><td class="dir">both</td><td class="k">event {name, data, uploads? | downloads?}</td><td>An event; placeholders as for <code>call</code></td></tr>
+                <tr><td class="dir">app → page</td><td class="k">stream {stream: {name, id, slots, shared}}</td><td>A stream was created or replaced while a page is connected; in shared mode its regions are shared too</td></tr>
+                <tr><td class="dir">app → page</td><td class="k">frame {stream, id, slot, size, meta}</td><td>A slot is ready. In fetch mode the page then requests <code>/uniapi/stream/&lt;name&gt;/&lt;slot&gt;</code>. The page hands a stream's frames to its handler in the order they arrive, even when their bytes are ready out of order</td></tr>
+                <tr><td class="dir">page → app</td><td class="k">release {stream, id, slot}</td><td>The page is done with that slot; ignored if the stream was replaced since</td></tr>
+                <tr><td class="dir">page → app</td><td class="k">unshared {stream, id}</td><td>That stream's regions never arrived; the page fetches its slots from now on</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- ============================================================ PORTING -->
+<section id="porting">
+    <h2>Adding a platform</h2>
+    <div class="prose">
+        <p>All platform code sits behind one interface, <code>uniapi::detail::Backend</code> in <code>src/core/backend.hpp</code>. Everything crossing it is UTF-8; the core never calls a platform API. A new platform implements the class below, sends events back through <code>BackendEvents</code>, and provides <code>CreateBackend()</code>. A port is done when <code>ctest</code> passes: the API test (<code>uniapi_api_test</code>) checks every feature in both transfer modes, and the C API test (<code>uniapi_c_api_test</code>) every C function that can run unattended. Run either directly to keep its window open with every check and the value it got, or add <code>--no-shared-memory</code> for the fetch fallback. Then go through the two checker apps by hand (<code>uniapi_checker</code>, <code>uniapi_checker_c</code>): an alert, the Open and Save dialogs, window options, the icon and full screen; and measure the new platform with <code>uniapi_latency</code> (see <a href="#latency">Latency</a>).</p>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Member</th><th>Does</th></tr></thead>
+            <tbody>
+                <tr><td class="k">Run()</td><td>Creates the window and web view, raises <code>onReady(sharedMemorySupported)</code>, runs the event loop</td></tr>
+                <tr><td class="k">Quit()</td><td>Closes the window so <code>Run()</code> returns</td></tr>
+                <tr><td class="k">Navigate(path)</td><td>Loads a path on the app's origin</td></tr>
+                <tr><td class="k">PostToPage(text)</td><td>Delivers one message to <code>uniapi.js</code></td></tr>
+                <tr><td class="k">CreateSharedRegion(bytes)</td><td>Allocates memory the page can map, or returns null when unsupported</td></tr>
+                <tr><td class="k">ShareRegion(region, infoJson)</td><td>Hands a region to the page together with its <code>{stream, slot}</code> tag</td></tr>
+                <tr><td class="k">Post(fn) · OnUiThread()</td><td>Thread-safe queue onto the UI thread; whether the caller is on it</td></tr>
+                <tr><td class="k">AddTimer · RemoveTimer</td><td>Repeating timers on the UI thread</td></tr>
+                <tr><td class="k">SetTitle · SaveFileDialog</td><td>Window title and the Save dialog</td></tr>
+                <tr class="group"><td colspan="2">BackendEvents: the platform calls these</td></tr>
+                <tr><td class="k">onReady(bool)</td><td>The web view exists; whether shared memory is supported</td></tr>
+                <tr><td class="k">onMessage(text)</td><td>A message from the page (check it came from the app's origin)</td></tr>
+                <tr><td class="k">onRequest(Request&amp;, Response&amp;)</td><td>The page requested something on the app's origin: <code>method</code>, <code>path</code> and, for POST, the <code>body</code> (binary data sent to C++); fill in the response. <code>keepAlive</code> owns the bytes while the platform reads them</td></tr>
+                <tr><td class="k">onNavigationStarting() · onClosed()</td><td>The current page is going away</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+</main>
+</div>
+<!-- The name in the header, placed beside API as everywhere (logo/name-fit.js); again when the
+     colour scheme changes (it shows the other name). -->
+<script src="logo/name.js"></script>
+<script src="logo/name-fit.js"></script>
+<script>
+const placeName = fitUniapiName(document.querySelectorAll('h1 .name'), document.querySelector('h1 .caps'));
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', placeName);
+new MutationObserver(placeName).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+</script>
+</body>
+</html>

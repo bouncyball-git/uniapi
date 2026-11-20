@@ -1,0 +1,9 @@
+{
+    "name": "uniapi minify check",
+    "levels": [ -60, -18, 0.5, 6 ],
+    "nested": {
+        "on": true,
+        "text": "spaces  inside  strings  stay",
+        "nothing": null
+    }
+}

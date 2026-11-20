@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>uniapi lifecycle test: a further window</title>
+<style>
+    body { margin: 0; padding: 16px; font: 13px/1.5 system-ui, sans-serif; background: #1c2026; color: #d4dae3; }
+</style>
+</head>
+<body>
+<p id="what">A further window.</p>
+<script src="/uniapi/uniapi.js"></script>
+<script>
+// Its page name from the query: "?early", "?ready", "?asks"... ("other" without one).
+const name = location.search.slice(1) || 'other';
+document.getElementById('what').textContent = `A further window: ${name}.`;
+const app = uniapi.connect({ page: name });
+app.expose({
+    echo: (x) => x,
+    // "Close this window?" answered yes, a moment later (as a person would).
+    confirmClose: () => new Promise((resolve) => setTimeout(() => resolve(true), 100)),
+});
+// A ShowWhenReady page: it says it is drawn; that mustn't show a window C++ keeps hidden.
+if (name === 'ready') app.ready.then(() => {
+    app.show();
+    app.emit('showed');
+});
+</script>
+</body>
+</html>

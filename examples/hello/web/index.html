@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hello uniapi</title>
+<style>
+    :root { color-scheme: light dark; font: 16px/1.5 system-ui, sans-serif; }
+    body { margin: 0; padding: 28px 32px; display: grid; gap: 14px; max-width: 480px; }
+    h1 { margin: 0; font-size: 24px; }
+    form { display: flex; gap: 8px; }
+    input { flex: 1; min-width: 0; font: inherit; padding: 6px 10px; }
+    button { font: inherit; padding: 6px 16px; }
+    #answer { margin: 0; min-height: 1.5em; }
+    #answer.error { color: #d93025; }
+    #uptime { margin: 0; color: GrayText; font-size: 14px; }
+</style>
+</head>
+<body>
+<h1>Hello uniapi</h1>
+<form id="form">
+    <input id="name" placeholder="Your name" aria-label="Your name" autofocus>
+    <button>Greet</button>
+</form>
+<p id="answer"></p>
+<p id="uptime">Waiting for the native side…</p>
+
+<script src="/uniapi/uniapi.js"></script>
+<script>
+// Shared by examples/hello (C++, main.cpp) and examples/hello_c (C, main.c).
+const app = uniapi.connect({ page: 'hello' });
+
+// The native side calls this once a second (App::call / uniapi_call).
+app.expose({
+    showUptime(seconds) {
+        document.getElementById('uptime').textContent = `The native side has been running for ${seconds} s.`;
+    },
+});
+
+// This calls the native function "greet" (App::expose / uniapi_expose).
+document.getElementById('form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const answer = document.getElementById('answer');
+    try {
+        answer.textContent = await app.native.greet(document.getElementById('name').value);
+        answer.className = '';
+    } catch (err) {
+        answer.textContent = err.message;  // the C++ exception's message, or uniapi_reply_reject's
+        answer.className = 'error';
+    }
+});
+</script>
+</body>
+</html>

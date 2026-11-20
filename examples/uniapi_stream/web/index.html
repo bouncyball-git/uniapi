@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Native Zero-Copy App</title>
+<style>
+    html, body { margin: 0; height: 100%; background: #111; color: #ccc; font: 13px system-ui, sans-serif; }
+    body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+    canvas { max-width: 95vw; max-height: 85vh; background: #000; }
+    .toolbar { position: fixed; top: 12px; right: 12px; display: flex; gap: 8px; }
+    .toolbar-button {
+        padding: 7px 14px; border-radius: 8px;
+        background: #23262b; color: #e6e8eb; border: 1px solid #2f3339;
+        font: 600 13px "Segoe UI", system-ui, sans-serif; text-decoration: none; cursor: pointer;
+    }
+    .toolbar-button:hover { border-color: #4c8dff; }
+    .toolbar-button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(76, 141, 255, 0.45); }
+    /* aria-pressed is set by C++ through DOM commands once it has applied the change. */
+    /* Opaque: the toolbar sits over the moving video, which would show through a tint. */
+    .toolbar-button[aria-pressed="true"] { background: #1d3461; border-color: #4c8dff; color: #fff; }
+
+    /* Native stats panel: the elements are created by C++ (see WriteStatsPanel in main.cpp). */
+    .native-panel {
+        position: fixed; top: 12px; left: 12px; width: 210px;
+        padding: 10px 12px; border-radius: 10px;
+        background: rgba(27, 29, 33, 0.88); border: 1px solid #2f3339;
+        font: 12px/1.4 "Segoe UI", system-ui, sans-serif; color: #e6e8eb;
+        font-variant-numeric: tabular-nums;
+    }
+    .native-panel h2 { margin: 0; font-size: 13px; font-weight: 600; }
+    .native-panel .note { margin: 2px 0 8px; color: #9aa1ab; font-size: 11px; }
+    .native-panel dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; }
+    .native-panel dt { color: #9aa1ab; }
+    .native-panel dd { margin: 0; text-align: right; white-space: nowrap; }
+    .native-panel .bars { display: flex; align-items: flex-end; gap: 1px; height: 36px; margin-top: 10px; }
+    .native-panel .bars > div { flex: 1; min-height: 1px; background: #4c8dff; opacity: 0.55; border-radius: 1px 1px 0 0; }
+    .native-panel .bars > div.latest { opacity: 1; }
+    .native-panel .footer { margin: 6px 0 0; color: #9aa1ab; font-size: 10px; }
+</style>
+</head>
+<body>
+<div class="toolbar">
+    <button type="button" id="stats-button" class="toolbar-button" aria-pressed="false"
+            aria-keyshortcuts="S" title="Show or hide stats (S)">Stats</button>
+    <a class="toolbar-button" href="controls.html">Controls</a>
+</div>
+<canvas id="view"></canvas>
+<div id="stats">Waiting for native frames…</div>
+
+<script src="/uniapi/uniapi.js"></script>
+<script>
+    // The C++ side (examples/uniapi_stream/main.cpp) streams frames on "frames", builds the Native
+    // stats overlay with DOM command lists, and exposes setStats() for the Stats button.
+    const app = uniapi.connect({ page: 'demo' });
+
+    // ?draw=2d (default)   2D canvas, GPU-backed: every putImageData is a texture upload
+    // ?draw=2d-cpu         2D canvas kept in CPU memory (willReadFrequently)
+    // ?draw=webgl          WebGL2 texture upload + full-screen triangle
+    const drawMode = new URLSearchParams(location.search).get('draw') || '2d';
+
+    function create2dDrawer(canvas, cpu) {
+        const ctx = canvas.getContext('2d', { willReadFrequently: cpu });
+        return (bytes, width, height) => {
+            // ImageData wraps the frame bytes without copying; putImageData copies them into the canvas.
+            const pixels = new Uint8ClampedArray(bytes.buffer, bytes.byteOffset, width * height * 4);
+            ctx.putImageData(new ImageData(pixels, width, height), 0, 0);
+        };
+    }
+
+    function createWebGLDrawer(canvas) {
+        const gl = canvas.getContext('webgl2', { alpha: false, antialias: false, depth: false });
+        if (!gl) throw new Error('WebGL2 unavailable');
+
+        const compile = (type, source) => {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader));
+            return shader;
+        };
+        const program = gl.createProgram();
+        // One triangle covering the viewport; uv.y is flipped because row 0 of the frame is the top.
+        gl.attachShader(program, compile(gl.VERTEX_SHADER, `#version 300 es
+            out vec2 uv;
+            void main() {
+                vec2 p = vec2(float((gl_VertexID & 1) << 2), float((gl_VertexID & 2) << 1));
+                uv = vec2(p.x * 0.5, 1.0 - p.y * 0.5);
+                gl_Position = vec4(p - 1.0, 0.0, 1.0);
+            }`));
+        gl.attachShader(program, compile(gl.FRAGMENT_SHADER, `#version 300 es
+            precision mediump float;
+            uniform sampler2D frame;
+            in vec2 uv;
+            out vec4 color;
+            void main() { color = texture(frame, uv); }`));
+        gl.linkProgram(program);
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
+        gl.useProgram(program);
+
+        let texture = null, textureWidth = 0, textureHeight = 0;
+        return (bytes, width, height) => {
+            if (width !== textureWidth || height !== textureHeight) {
+                // Immutable storage of the frame size; per-frame uploads then only replace contents.
+                gl.deleteTexture(texture);
+                texture = gl.createTexture();
+                gl.bindTexture(gl.TEXTURE_2D, texture);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, width, height);
+                gl.viewport(0, 0, width, height);
+                textureWidth = width;
+                textureHeight = height;
+            }
+            // Copies the frame bytes into WebGL's upload buffer before returning,
+            // so the slot can be released as soon as this function returns.
+            gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, bytes);
+            gl.drawArrays(gl.TRIANGLES, 0, 3);
+        };
+    }
+
+    const canvas = document.getElementById('view');
+    const draw = drawMode === 'webgl' ? createWebGLDrawer(canvas) : create2dDrawer(canvas, drawMode === '2d-cpu');
+    const stats = document.getElementById('stats');
+    let framesThisSecond = 0;
+    let drawMsThisSecond = 0;
+    let lastReport = performance.now();
+
+    const onFrame = (bytes, meta) => {
+        const { width, height } = meta;
+        if (meta.draw) {
+            const drawStart = performance.now();
+            if (canvas.width !== width || canvas.height !== height) {
+                canvas.width = width;
+                canvas.height = height;
+            }
+            draw(bytes, width, height);
+            drawMsThisSecond += performance.now() - drawStart;
+        }
+
+        framesThisSecond++;
+        const now = performance.now();
+        if (now - lastReport >= 1000) {
+            const fps = (framesThisSecond * 1000) / (now - lastReport);
+            const drawMs = drawMsThisSecond / framesThisSecond;
+            stats.textContent = `${fps.toFixed(1)} fps · frame ${meta.frame} · ` +
+                `${meta.dropped} dropped · ${(bytes.byteLength / 1024).toFixed(0)} KiB per frame · ` +
+                `${drawMode} draw ${drawMs.toFixed(2)} ms`;
+            app.emit('draw-ms', drawMs);  // for the native window title and overlay
+            framesThisSecond = 0;
+            drawMsThisSecond = 0;
+            lastReport = now;
+        }
+    };
+
+    app.stream('frames', onFrame);
+
+    // Asks C++ to show or hide the panel. C++ builds or removes it and updates
+    // aria-pressed itself, so the button always reflects what is really shown.
+    const statsButton = document.getElementById('stats-button');
+    statsButton.addEventListener('click', () => {
+        const shown = statsButton.getAttribute('aria-pressed') === 'true';
+        app.native.setStats(!shown);
+    });
+
+    // S toggles the overlay, exactly like clicking Stats. Not with modifiers (Ctrl+S
+    // etc. stay free), not on key repeat, and not while typing in a text field.
+    document.addEventListener('keydown', (event) => {
+        if (event.key.toLowerCase() !== 's' || event.repeat) return;
+        if (event.ctrlKey || event.altKey || event.metaKey) return;
+        if (event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable]')) return;
+        event.preventDefault();
+        statsButton.click();
+    });
+</script>
+</body>
+</html>

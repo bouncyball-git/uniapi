@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>uniapi checker</title>
+<style>
+    :root { color-scheme: light dark; font: 15px/1.5 system-ui, sans-serif; }
+    body { margin: 0; padding: 18px 22px; display: grid; gap: 10px; }
+    h1 { margin: 0; font-size: 20px; }
+    p { margin: 0; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; }
+    button { font: inherit; padding: 6px 12px; }
+    #log { font: 13px/1.45 ui-monospace, monospace; white-space: pre-wrap; border-top: 1px solid GrayText; padding-top: 8px; }
+</style>
+</head>
+<body>
+<h1>uniapi checker</h1>
+<p>Each button shows its result below. Also try shrinking the window below 500 × 400: it should stop there.</p>
+<div class="row">
+    <button data-fn="openOne">Open one file</button>
+    <button data-fn="openSeveral">Open several files</button>
+    <button data-fn="openFolder">Open a folder</button>
+    <button data-fn="openFolders">Open several folders</button>
+    <button data-fn="save">Save dialog</button>
+</div>
+<div class="row">
+    <button data-fn="alert">Alert</button>
+    <button data-fn="toggleFullscreen">Toggle full screen</button>
+    <button data-fn="cycleTitleBar">Title bar: system, dark, light</button>
+    <button id="icon">Set icon from a PNG…</button>
+    <button data-fn="devTools">Developer tools</button>
+    <button data-fn="limits">Window with a maximum size and a background</button>
+</div>
+<div id="log"></div>
+<script src="/uniapi/uniapi.js"></script>
+<script>
+'use strict';
+const app = uniapi.connect({ page: 'checker' });
+const log = (text) => { document.getElementById('log').textContent += text + '\n'; };
+
+app.ready.then(async () => log(`connected; shared memory: ${await app.native.sharedMemory() ? 'ON' : 'OFF'}`));
+
+for (const button of document.querySelectorAll('[data-fn]')) {
+    button.addEventListener('click', async () => {
+        try {
+            log(`${button.dataset.fn}: ${JSON.stringify(await app.call(button.dataset.fn))}`);
+        } catch (err) {
+            log(`${button.dataset.fn} failed: ${err.message}`);
+        }
+    });
+}
+
+// Opens the Open dialog (PNG files only) and sets the picked file as the window icon.
+// Expected setIcon: true on Windows and GTK 3 (X11 shows it; Wayland ignores it), false on GTK 4.
+document.getElementById('icon').addEventListener('click', async () => {
+    try {
+        log(`pickIcon: ${JSON.stringify(await app.native.pickIcon())}`);
+    } catch (err) {
+        log(`pickIcon failed: ${err.message}`);
+    }
+});
+</script>
+</body>
+</html>
