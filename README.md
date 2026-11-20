@@ -497,6 +497,14 @@ lists the page (Safari > Settings > Advanced > Show features for web developers)
 `window.openDevTools()` opens them from the program on Linux and Windows; macOS gives no way.
 C: `dev_tools`, `uniapi_window_open_dev_tools`.
 
+**Right-click menu.** `AppOptions::contextMenu` (on by default) leaves the web engine's own
+right-click menu in full: Back, Reload, Save as, Print, and Inspect with the developer tools on.
+Off, for a program in people's hands, the menu keeps only its text editing items (Undo, Redo, Cut,
+Copy, Paste, Paste as plain text, Delete, Select All) where they apply, in text fields and on
+selected text, and doesn't open elsewhere; on every platform (WebView2's ContextMenuRequested,
+WebKitGTK's context-menu signal, WKWebView's menu). The page's own `contextmenu` handlers work
+either way, so a page can still show a menu of its own. C: `context_menu`.
+
 ```cpp
 uniapi::OpenDialogOptions o;
 o.multiple = true;

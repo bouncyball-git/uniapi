@@ -261,6 +261,45 @@ HICON MakeIcon(const unsigned char* png, size_t size, int pixels) {
                                     LR_DEFAULTCOLOR);
 }
 
+// AppOptions::contextMenu off: WebView2's right-click menu keeps its text editing items only,
+// with separators only between them; no menu at all when none is left.
+void KeepEditingItems(ICoreWebView2ContextMenuRequestedEventArgs* args) {
+    static const wchar_t* const kEditing[] = {L"undo", L"redo", L"cut", L"copy", L"paste", L"pasteAndMatchStyle",
+                                              L"selectAll"};
+    ComPtr<ICoreWebView2ContextMenuItemCollection> items;
+    if (FAILED(args->get_MenuItems(&items)) || !items) return;
+    UINT32 count = 0;
+    items->get_Count(&count);
+    UINT32 kept = 0;             // items (not separators) left
+    bool afterSeparator = true;  // (or at the start): no separator may follow
+    for (UINT32 i = 0; i < count;) {
+        ComPtr<ICoreWebView2ContextMenuItem> item;
+        COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND kind = COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_COMMAND;
+        bool keep = false;
+        if (SUCCEEDED(items->GetValueAtIndex(i, &item)) && item && SUCCEEDED(item->get_Kind(&kind))) {
+            if (kind == COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_SEPARATOR) {
+                keep = !afterSeparator;
+            } else {
+                LPWSTR name = nullptr;
+                if (SUCCEEDED(item->get_Name(&name)) && name) {
+                    for (const wchar_t* editing : kEditing) keep = keep || wcscmp(name, editing) == 0;
+                    CoTaskMemFree(name);
+                }
+            }
+        }
+        if (!keep) {
+            items->RemoveValueAtIndex(i);
+            --count;
+            continue;
+        }
+        afterSeparator = kind == COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_SEPARATOR;
+        if (!afterSeparator) ++kept;
+        ++i;
+    }
+    if (count && afterSeparator) items->RemoveValueAtIndex(count - 1);  // a separator at the end
+    if (kept == 0) args->put_Handled(TRUE);                              // nothing to show: no menu
+}
+
 // One window with its WebView2 web view: the main window, or a further one (App::openWindow).
 class WebWindow final : public BackendWindow {
 public:
@@ -281,6 +320,7 @@ public:
         bool owned = false;  // owned by the main window
         bool modal = false;  // the main window takes no input while it is open
         bool devTools = false;  // AppOptions::devTools: F12, "Inspect", OpenDevTools
+        bool contextMenu = true;  // AppOptions::contextMenu: the right-click menu in full
         int maxWidth = 0;       // 0: no maximum
         int maxHeight = 0;
         int background = -1;    // 0xRRGGBB behind the page, or -1 (ColorValue)
@@ -776,6 +816,7 @@ public:
         setup.hidden = options.startHidden;
         setup.main = true;
         setup.devTools = options.devTools;
+        setup.contextMenu = options.contextMenu;
         setup.maxWidth = options.maxWidth;
         setup.maxHeight = options.maxHeight;
         setup.background = ColorValue(options.backgroundColor);
@@ -1133,6 +1174,7 @@ public:
         setup.owned = options.owned || options.modal;
         setup.modal = options.modal;
         setup.devTools = options_.devTools;
+        setup.contextMenu = options_.contextMenu;
         setup.maxWidth = options.maxWidth;
         setup.maxHeight = options.maxHeight;
         setup.background = ColorValue(options.backgroundColor);
@@ -1517,6 +1559,20 @@ HRESULT WebWindow::OnControllerCreated(HRESULT result, ICoreWebView2Controller* 
     // AppOptions::devTools: off (the default), no F12 and no "Inspect" in the page's menu.
     ComPtr<ICoreWebView2Settings> settings;
     if (SUCCEEDED(webview_->get_Settings(&settings)) && settings) settings->put_AreDevToolsEnabled(setup_.devTools);
+    // AppOptions::contextMenu off: the right-click menu keeps its text editing items only.
+    if (!setup_.contextMenu) {
+        ComPtr<ICoreWebView2_11> webview11;
+        if (SUCCEEDED(webview_.As(&webview11))) {
+            EventRegistrationToken menu;
+            webview11->add_ContextMenuRequested(
+                Callback<ICoreWebView2ContextMenuRequestedEventHandler>(
+                    [](ICoreWebView2*, ICoreWebView2ContextMenuRequestedEventArgs* args) -> HRESULT {
+                        KeepEditingItems(args);
+                        return S_OK;
+                    }).Get(),
+                &menu);
+        }
+    }
     RECT bounds;
     GetClientRect(window_, &bounds);
     controller_->put_Bounds(bounds);

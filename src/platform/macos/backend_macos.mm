@@ -178,6 +178,8 @@ using uniapi::detail::MacWindow;
 // File objects don't have) before WebKit hands the page its drop event.
 @interface UniapiWebView : WKWebView
 @property(nonatomic, assign) MacWindow* host;
+// AppOptions::contextMenu off: its right-click menu keeps the text editing items only.
+@property(nonatomic, assign) BOOL editingMenuOnly;
 // For tests (tests/desktop): as if these files had been dropped at (x, y) in CSS pixels.
 - (void)uniapiTestDropPaths:(NSArray<NSString*>*)paths x:(NSInteger)x y:(NSInteger)y;
 @end
@@ -412,6 +414,7 @@ public:
         bool owned = false;  // opens centred over the main window
         bool modal = false;  // the main window takes no input while it is open
         bool devTools = false;  // AppOptions::devTools: Safari's Develop menu lists the page
+        bool contextMenu = true;  // AppOptions::contextMenu: the right-click menu in full
         int maxWidth = 0;       // 0: no maximum
         int maxHeight = 0;
         int background = -1;    // 0xRRGGBB behind the page, or -1 (ColorValue)
@@ -898,6 +901,7 @@ public:
         setup.hidden = options.startHidden;
         setup.main = true;
         setup.devTools = options.devTools;
+        setup.contextMenu = options.contextMenu;
         setup.maxWidth = options.maxWidth;
         setup.maxHeight = options.maxHeight;
         setup.background = ColorValue(options.backgroundColor);
@@ -1152,6 +1156,7 @@ public:
         setup.owned = options.owned || options.modal;
         setup.modal = options.modal;
         setup.devTools = options_.devTools;
+        setup.contextMenu = options_.contextMenu;
         setup.maxWidth = options.maxWidth;
         setup.maxHeight = options.maxHeight;
         setup.background = ColorValue(options.backgroundColor);
@@ -1327,6 +1332,8 @@ void MacWindow::Create(const std::string& origin, WKWebsiteDataStore* store, NSW
     // AppOptions::devTools: Safari's Develop menu lists the page (as WebView2's DevTools); off,
     // it doesn't.
     view_.inspectable = setup_.devTools;
+    // AppOptions::contextMenu off: the right-click menu keeps its text editing items only.
+    webView.editingMenuOnly = !setup_.contextMenu;
     // AppOptions::backgroundColor: the web view draws no background of its own, so the window's
     // colour shows through a page with none, and beyond the page when it is scrolled past its
     // ends.
@@ -1676,6 +1683,35 @@ using uniapi::detail::gRunning;
         host->OnDrop(paths, int(point.x), int(point.y));
     }
     return [super performDragOperation:sender];  // the page's drop event (a navigation to the file is refused)
+}
+// AppOptions::contextMenu off: WebKit's menu keeps its text editing items (by their action, or
+// WebKit's identifier for Cut, Copy and Paste), with separators only between them; an empty menu
+// isn't shown.
+- (void)willOpenMenu:(NSMenu*)menu withEvent:(NSEvent*)event {
+    [super willOpenMenu:menu withEvent:event];
+    if (!self.editingMenuOnly) return;
+    static const SEL kEditing[] = {@selector(cut:),    @selector(copy:),      @selector(paste:), @selector(pasteAsPlainText:),
+                                   @selector(delete:), @selector(selectAll:), @selector(undo:),  @selector(redo:)};
+    auto editing = [](NSMenuItem* item) {
+        for (SEL action : kEditing)
+            if (item.action == action) return true;
+        NSString* name = item.identifier ?: @"";
+        return [name isEqualToString:@"WKMenuItemIdentifierCut"] || [name isEqualToString:@"WKMenuItemIdentifierCopy"] ||
+               [name isEqualToString:@"WKMenuItemIdentifierPaste"];
+    };
+    BOOL afterSeparator = YES;  // (or at the start): no separator may follow
+    for (NSInteger i = 0; i < menu.numberOfItems;) {
+        NSMenuItem* item = [menu itemAtIndex:i];
+        const BOOL keep = item.isSeparatorItem ? !afterSeparator : editing(item);
+        if (!keep) {
+            [menu removeItemAtIndex:i];
+            continue;
+        }
+        afterSeparator = item.isSeparatorItem;
+        ++i;
+    }
+    if (menu.numberOfItems && [menu itemAtIndex:menu.numberOfItems - 1].isSeparatorItem)
+        [menu removeItemAtIndex:menu.numberOfItems - 1];
 }
 - (void)uniapiTestDropPaths:(NSArray<NSString*>*)paths x:(NSInteger)x y:(NSInteger)y {
     MacWindow* host = self.host;

@@ -117,6 +117,9 @@ typedef struct uniapi_options {
     int max_width, max_height;  /* 0: no maximum (not on Linux with GTK 4; AppOptions::maxWidth) */
     const char* background_color; /* NULL; "#rrggbb" or "#rgb": the colour behind the page, before
                                    * it has drawn and at its edges (AppOptions::backgroundColor) */
+    int context_menu;           /* 1; 0: the engine's right-click menu keeps only its text editing
+                                 * items (cut, copy, paste...), none elsewhere
+                                 * (AppOptions::contextMenu) */
 } uniapi_options;
 
 void uniapi_options_init(uniapi_options* options); /* fills in the defaults above */

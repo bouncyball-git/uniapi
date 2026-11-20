@@ -160,6 +160,7 @@ int main() {
     options.activate = keepOpen;
     options.startHidden = true;
     options.devTools = true;
+    options.contextMenu = false;  // the right-click menu limited (its handler set on every window's view)
     uniapi::App app(options);
     app.serve(lifecycle_web);
     Checks checks;

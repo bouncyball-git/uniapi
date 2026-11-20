@@ -165,6 +165,7 @@ void uniapi_options_init(uniapi_options* options) {
     options->max_width = defaults.maxWidth;
     options->max_height = defaults.maxHeight;
     options->background_color = nullptr;
+    options->context_menu = defaults.contextMenu;
 }
 
 namespace {
@@ -204,6 +205,7 @@ uniapi_app* uniapi_app_new(const uniapi_options* options) {
             o.maxWidth = options->max_width;
             o.maxHeight = options->max_height;
             if (options->background_color) o.backgroundColor = options->background_color;
+            o.contextMenu = options->context_menu != 0;
         }
         return new uniapi_app(o);
     });

@@ -815,6 +815,7 @@ static void checks_before_run(void) {
               defaults.single_instance == NULL, "");
         check("uniapi_options_init: calls not checked strictly (strict_calls 0)", defaults.strict_calls == 0, "");
         check("uniapi_options_init: the developer tools off (dev_tools 0)", defaults.dev_tools == 0, "");
+        check("uniapi_options_init: the engine's right-click menu in full (context_menu 1)", defaults.context_menu == 1, "");
         check("uniapi_options_init: no maximum size, the system's background (max_width/max_height 0, background_color NULL)",
               defaults.max_width == 0 && defaults.max_height == 0 && defaults.background_color == NULL, "");
     }

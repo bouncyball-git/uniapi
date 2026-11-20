@@ -395,6 +395,54 @@ void AllowDevTools(WebKitWebView* view) {
                      nullptr);
 }
 
+// AppOptions::contextMenu off: the view's right-click menu keeps its text editing items only, with
+// separators only between them; no menu at all when none is left (returns TRUE then).
+gboolean KeepEditingItems(WebKitContextMenu* menu) {
+    static const WebKitContextMenuAction kEditing[] = {
+        WEBKIT_CONTEXT_MENU_ACTION_CUT,    WEBKIT_CONTEXT_MENU_ACTION_COPY,       WEBKIT_CONTEXT_MENU_ACTION_PASTE,
+        WEBKIT_CONTEXT_MENU_ACTION_DELETE, WEBKIT_CONTEXT_MENU_ACTION_SELECT_ALL, WEBKIT_CONTEXT_MENU_ACTION_PASTE_AS_PLAIN_TEXT};
+    std::vector<WebKitContextMenuItem*> remove;
+    WebKitContextMenuItem* lastKept = nullptr;
+    bool afterSeparator = true;  // (or at the start): no separator may follow
+    int kept = 0;
+    for (GList* l = webkit_context_menu_get_items(menu); l; l = l->next) {
+        auto* item = static_cast<WebKitContextMenuItem*>(l->data);
+        const bool separator = webkit_context_menu_item_is_separator(item);
+        bool keep = false;
+        if (separator) {
+            keep = !afterSeparator;
+        } else {
+            const WebKitContextMenuAction action = webkit_context_menu_item_get_stock_action(item);
+            for (WebKitContextMenuAction editing : kEditing) keep = keep || action == editing;
+        }
+        if (!keep) {
+            remove.push_back(item);
+            continue;
+        }
+        afterSeparator = separator;
+        lastKept = item;
+        if (!separator) ++kept;
+    }
+    if (lastKept && afterSeparator) remove.push_back(lastKept);  // a separator at the end
+    for (WebKitContextMenuItem* item : remove) webkit_context_menu_remove(menu, item);
+    return kept == 0 ? TRUE : FALSE;
+}
+
+void LimitContextMenu(WebKitWebView* view) {
+#ifdef UNIAPI_GTK4
+    g_signal_connect(view, "context-menu",
+                     G_CALLBACK(+[](WebKitWebView*, WebKitContextMenu* menu, WebKitHitTestResult*, gpointer) -> gboolean {
+                         return KeepEditingItems(menu);
+                     }),
+                     nullptr);
+#else
+    g_signal_connect(view, "context-menu",
+                     G_CALLBACK(+[](WebKitWebView*, WebKitContextMenu* menu, GdkEvent*, WebKitHitTestResult*,
+                                    gpointer) -> gboolean { return KeepEditingItems(menu); }),
+                     nullptr);
+#endif
+}
+
 // Opens the Web Inspector on a view's page (detached: AllowDevTools); nothing without devTools.
 void OpenDevToolsOf(WebKitWebView* view, bool devTools) {
     if (!view || !devTools) return;
@@ -1308,6 +1356,7 @@ public:
 #endif
         webview_ = WEBKIT_WEB_VIEW(view);
         if (options_.devTools) AllowDevTools(webview_);
+        if (!options_.contextMenu) LimitContextMenu(webview_);
         ApplyBackground(GTK_WIDGET(window_), webview_, ColorValue(options_.backgroundColor));
         g_object_set_data(G_OBJECT(view), kBackendKey, static_cast<ViewHost*>(this));  // for OnSchemeRequestOfView; dies with the view
         placement_.Attach(window_, webview_);
@@ -2043,6 +2092,7 @@ public:
     // A web view in the main window's context (and profile): one set of web processes, the same
     // scheme handler.
     bool DevTools() const { return options_.devTools; }
+    bool ContextMenu() const { return options_.contextMenu; }
     GtkWidget* NewView() const {
 #ifdef UNIAPI_GTK4
         return session_ ? GTK_WIDGET(g_object_new(WEBKIT_TYPE_WEB_VIEW, "web-context", context_, "network-session",
@@ -2345,6 +2395,7 @@ public:
         GtkWidget* view = backend_.NewView();
         webview_ = WEBKIT_WEB_VIEW(view);
         if (backend_.DevTools()) AllowDevTools(webview_);
+        if (!backend_.ContextMenu()) LimitContextMenu(webview_);
         ApplyBackground(GTK_WIDGET(window_), webview_, ColorValue(options_.backgroundColor));
         g_object_set_data(G_OBJECT(view), kBackendKey, static_cast<ViewHost*>(this));  // dies with the view
         placement_.Attach(window_, webview_);

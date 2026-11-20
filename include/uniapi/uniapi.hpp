@@ -181,6 +181,13 @@ struct AppOptions {
     // "Inspect" in the page's menu. macOS: Safari's Develop menu lists the page.
     // Window::openDevTools opens them from the program.
     bool devTools = false;
+    // The web engine's own right-click menu in full (Back, Reload, Save as, Print, and Inspect
+    // with devTools on). Off: it keeps only its text editing items (Undo, Redo, Cut, Copy, Paste,
+    // Paste as plain text, Delete, Select All) where they apply, in text fields and on selected
+    // text, and shows nothing elsewhere; for a program in people's hands. The page's own
+    // contextmenu handlers work either way (a page can show a menu of its own), and devTools
+    // still decides about the developer tools (F12 and the like).
+    bool contextMenu = true;
     // Made-up host the pages are served from. Keep a reserved name: on Windows, ".local"
     // names trigger multicast DNS lookups that stall every page load by ~2 seconds.
     std::string host = "uniapi.example";
