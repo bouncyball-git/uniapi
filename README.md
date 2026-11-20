@@ -6,7 +6,7 @@
 </p>
 
 # uniapi
-Universal low level api layer for C++ and JS interaction
+API layer for C\C++ and JS interaction
 
 A C++ library for desktop apps whose UI is a web page and whose work is done in C++:
 JavaScript calls C++ functions, C++ calls JavaScript functions, and large data (video
