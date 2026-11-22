@@ -4,7 +4,8 @@
 
 # uniapi_install(<target> [DESTINATION <dir>] [NAME <name>] [ICON <file.svg|file.png>]
 #                [COMMENT <text>] [CATEGORIES <name>...] [BUNDLE_ID <id>] [VERSION <v>]
-#                [COPYRIGHT <text>])
+#                [COPYRIGHT <text>]
+#                [FILE_TYPES <ext>... [FILE_TYPE_NAME <text>] [FILE_TYPE_ID <uti>]])
 #
 # Installs an app built with uniapi so that it runs from where it is installed
 # (cmake --install <build> --prefix <prefix>):
@@ -35,6 +36,14 @@
 # (the Desktop Menu Specification's names: System TerminalEmulator; Utility by default).
 # COPYRIGHT is the copyright line Finder shows on macOS.
 #
+# FILE_TYPES (macOS) are file name extensions (without the dot; any case) the app opens: the
+# bundle declares them as one type (FILE_TYPE_ID, a uniform type identifier; default
+# <bundle id>.document; FILE_TYPE_NAME is what Finder calls it, default "<NAME> document") and
+# itself as a viewer of it. Finder then shows those files with a document icon of the app's
+# (the system draws it from the app icon: the app's picture on a page) instead of a blank page,
+# and a double-click opens them in the app: App::onOpenFiles gets them. Several apps may
+# declare the same identifier; use the one the format's authors or other apps use, if any.
+#
 # <dir> defaults to bin (. on macOS); use one folder level (like bin) so ../lib stays inside <prefix>. With
 # DESTINATION . the app is self-contained instead: on Linux the extension goes to
 # uniapi-webext/ next to the executable, and there is no desktop entry.
@@ -59,7 +68,8 @@ function(uniapi_install target)
     # Here too: the folder names (bin, share) are plain variables, set above for uniapi's own
     # folder only; a project that has uniapi as a subfolder calls this from its own.
     include(GNUInstallDirs)
-    cmake_parse_arguments(ARG "" "DESTINATION;NAME;ICON;BUNDLE_ID;VERSION;COMMENT;COPYRIGHT" "CATEGORIES" ${ARGN})
+    cmake_parse_arguments(ARG "" "DESTINATION;NAME;ICON;BUNDLE_ID;VERSION;COMMENT;COPYRIGHT;FILE_TYPE_NAME;FILE_TYPE_ID"
+                          "CATEGORIES;FILE_TYPES" ${ARGN})
     # The Linux menu's categories as the entry's value: every name followed by ";".
     set(categories "")
     foreach(category IN LISTS ARG_CATEGORIES)
@@ -73,7 +83,8 @@ function(uniapi_install target)
     endif()
     if(APPLE)
         _uniapi_install_mac_bundle(${target} "${ARG_DESTINATION}" "${ARG_NAME}" "${ARG_ICON}" "${ARG_BUNDLE_ID}"
-                                   "${ARG_VERSION}" "${ARG_COMMENT}" "${ARG_COPYRIGHT}")
+                                   "${ARG_VERSION}" "${ARG_COMMENT}" "${ARG_COPYRIGHT}"
+                                   "${ARG_FILE_TYPES}" "${ARG_FILE_TYPE_NAME}" "${ARG_FILE_TYPE_ID}")
         return()
     endif()
     if(NOT ARG_DESTINATION)
@@ -133,7 +144,8 @@ endfunction()
 
 # The .app bundle (macOS). The build folder keeps the plain program (build/<app>, as on Linux);
 # the bundle is put together when installing.
-function(_uniapi_install_mac_bundle target destination display_name icon bundle_id version comment copyright)
+function(_uniapi_install_mac_bundle target destination display_name icon bundle_id version comment copyright
+                                    file_types file_type_name file_type_id)
     get_target_property(name ${target} OUTPUT_NAME)
     if(NOT name)
         set(name ${target})
@@ -171,8 +183,28 @@ function(_uniapi_install_mac_bundle target destination display_name icon bundle_
         VERBATIM)
     add_custom_target(${target}_app_icon ALL DEPENDS "${icns}")
 
+    # The file types: one declared type for every extension given (FILE_TYPES).
+    set(extensions_xml "")
+    foreach(ext IN LISTS file_types)
+        string(REGEX REPLACE "^\\." "" ext "${ext}")
+        if(NOT ext MATCHES "^[A-Za-z0-9_+-]+$")
+            message(FATAL_ERROR "uniapi_install(${name}): FILE_TYPES ${ext} is not a file name extension (like mlv)")
+        endif()
+        string(TOLOWER "${ext}" ext)
+        string(APPEND extensions_xml "<string>${ext}</string>")
+    endforeach()
+    if(NOT file_type_name)
+        set(file_type_name "${display_name} document")
+    endif()
+    if(NOT file_type_id)
+        set(file_type_id "${bundle_id}.document")
+    endif()
+    if(NOT file_type_id MATCHES "^[A-Za-z0-9.-]+$")
+        message(FATAL_ERROR "uniapi_install(${name}): FILE_TYPE_ID ${file_type_id} is not a type identifier (like org.example.format)")
+    endif()
+
     # XML-escaped values for the property list.
-    foreach(var display_name bundle_id version name comment copyright)
+    foreach(var display_name bundle_id version name comment copyright file_type_name)
         string(REPLACE "&" "&amp;" ${var}_xml "${${var}}")
         string(REPLACE "<" "&lt;" ${var}_xml "${${var}_xml}")
         string(REPLACE ">" "&gt;" ${var}_xml "${${var}_xml}")
@@ -184,6 +216,30 @@ function(_uniapi_install_mac_bundle target destination display_name icon bundle_
     endif()
     if(NOT copyright STREQUAL "")
         string(APPEND more "    <key>NSHumanReadableCopyright</key><string>${copyright_xml}</string>\n")
+    endif()
+    if(extensions_xml)
+        # Imported, not exported: the format isn't the app's own, and another app may declare it
+        # too. public.data, not public.movie: Quick Look and QuickTime would try to play it.
+        string(APPEND more "    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key><string>${file_type_name_xml}</string>
+            <key>CFBundleTypeRole</key><string>Viewer</string>
+            <key>LSHandlerRank</key><string>Default</string>
+            <key>LSItemContentTypes</key><array><string>${file_type_id}</string></array>
+        </dict>
+    </array>
+    <key>UTImportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key><string>${file_type_id}</string>
+            <key>UTTypeDescription</key><string>${file_type_name_xml}</string>
+            <key>UTTypeConformsTo</key><array><string>public.data</string></array>
+            <key>UTTypeTagSpecification</key>
+            <dict><key>public.filename-extension</key><array>${extensions_xml}</array></dict>
+        </dict>
+    </array>
+")
     endif()
     set(minimum "${CMAKE_OSX_DEPLOYMENT_TARGET}")
     if(NOT minimum)

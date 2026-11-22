@@ -607,6 +607,7 @@ struct Window::Impl : std::enable_shared_from_this<Window::Impl> {
     void OnExternalNavigation(const std::string& url);
     void OnFileDrop(const std::vector<std::string>& paths, int x, int y);
     void OnNotificationClicked(const std::string& id);
+    void OnOpenFiles(const std::vector<std::string>& paths);
     bool TakeUploads(json& value, std::vector<uint64_t>& tokens, int depth = 0);
     void StartPage(const std::string& name);
     void EndPage();
@@ -1875,6 +1876,7 @@ detail::BackendEvents Window::Impl::Events() {
     };
     backendEvents.onPlacementChanged = [self] { self->OnPlacementChanged(); };
     backendEvents.onNotificationClicked = [self](const std::string& id) { self->OnNotificationClicked(id); };
+    backendEvents.onOpenFiles = [self](const std::vector<std::string>& paths) { self->OnOpenFiles(paths); };
     backendEvents.onClosed = [self] { self->OnClosed(); };
     return backendEvents;
 }
@@ -1939,6 +1941,17 @@ void Window::Impl::OnNotificationClicked(const std::string& id) {
     if (!program) return;
     if (auto handler = program->onNotificationClicked) {
         RunGuarded("onNotificationClicked", [&] { handler(id); });
+    } else {
+        program->show();
+    }
+}
+
+// onOpenFiles, or without one, the main window shown.
+void Window::Impl::OnOpenFiles(const std::vector<std::string>& paths) {
+    App* program = app->owner;
+    if (!program || paths.empty()) return;
+    if (auto handler = program->onOpenFiles) {  // a copy: it may replace itself
+        RunGuarded("onOpenFiles", [&] { handler(paths); });
     } else {
         program->show();
     }

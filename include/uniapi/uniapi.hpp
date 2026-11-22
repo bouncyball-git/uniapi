@@ -779,6 +779,15 @@ public:
     // arguments (without the program) and working folder. Empty: the main window is shown.
     std::function<void(const std::vector<std::string>& arguments, const std::string& workingDirectory)>
         onSecondInstance;
+    // macOS: the system asks the app to open files (full paths, UTF-8): a double-click in the
+    // Finder on a file of a type the bundle declares (uniapi_install's FILE_TYPES), Open With,
+    // files dropped on the Dock icon, `open -a`. These never come as the program's arguments
+    // there: launched by a double-click, the app gets them here once run() has started (maybe
+    // before the page has connected); while it runs, each later open comes here too (macOS
+    // starts no second instance). The program's own command-line arguments stay arguments.
+    // Windows and Linux pass files as arguments (and onSecondInstance) instead: never called.
+    // Empty: the main window is shown.
+    std::function<void(const std::vector<std::string>& paths)> onOpenFiles;
     // The clipboard's text: `done` gets it, or nothing when the clipboard holds no text. On the
     // UI thread, always after clipboardText() has returned (GTK 4 reads the clipboard
     // asynchronously). Not before run() on Linux (no display yet: nothing).

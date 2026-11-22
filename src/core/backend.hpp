@@ -67,6 +67,9 @@ struct BackendEvents {
     std::function<void()> onPlacementChanged;
     // A notification (Backend::Notify) was clicked: its id. The main window's events only.
     std::function<void(const std::string& id)> onNotificationClicked;
+    // The system asked the app to open files (macOS: the Finder, the Dock; App::onOpenFiles).
+    // The main window's events only.
+    std::function<void(const std::vector<std::string>& paths)> onOpenFiles;
 };
 
 // A window's state: shown normally, minimised or maximised (full screen apart).

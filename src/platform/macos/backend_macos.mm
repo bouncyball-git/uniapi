@@ -272,6 +272,10 @@ void InitApp() {
     static bool started = false;
     if (started) return;
     started = true;
+    // The program's arguments stay its own: AppKit would otherwise take any that isn't an option
+    // for a file to open, and report it again through application:openURLs: (App::onOpenFiles)
+    // as well as in argv.
+    [[NSUserDefaults standardUserDefaults] registerDefaults:@{@"NSTreatUnknownArgumentsAsOpen" : @"NO"}];
     [NSApplication sharedApplication];
     [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
     gAppDelegate = [UniapiAppDelegate new];
@@ -694,6 +698,11 @@ public:
         if (events_.onNotificationClicked) events_.onNotificationClicked(id);
     }
 
+    // Files the system asked the app to open (the main window's events).
+    void OpenFiles(const std::vector<std::string>& paths) {
+        if (!paths.empty() && events_.onOpenFiles) events_.onOpenFiles(paths);
+    }
+
 private:
     void ReleaseHold();  // a modal window lets the main window take input again
 
@@ -1110,6 +1119,9 @@ public:
 
     // A click on one of this app's notifications (UniapiNotificationDelegate), on the main thread.
     void NotificationClicked(const std::string& id) { main_->NotificationClicked(id); }
+
+    // Files to open, from the Finder or the Dock (UniapiAppDelegate), on the main thread.
+    void OpenFiles(const std::vector<std::string>& paths) { main_->OpenFiles(paths); }
 
     std::optional<std::string> SaveFileDialog(const SaveDialogOptions& options) override {
         ActivateForDialog();  // also before run()
@@ -1767,6 +1779,21 @@ using uniapi::detail::gRunning;
     MacWindow* main = gRunning->Main();
     if (main && main->AskClose(uniapi::CloseReason::Quit)) gRunning->Quit();
     return NSTerminateCancel;
+}
+
+// Files to open (a double-click in the Finder on a declared type, Open With, a drop on the Dock
+// icon, `open -a`): to the running backend (gNotifying, set by Run(), so also the launch's own
+// files, which come while the event loop starts), then App::onOpenFiles. Later, from the loop:
+// the handler may open dialogs, which AppKit's event handling shouldn't be inside.
+- (void)application:(NSApplication*)sender openURLs:(NSArray<NSURL*>*)urls {
+    std::vector<std::string> paths;
+    for (NSURL* url in urls) {
+        if (url.isFileURL && url.path) paths.push_back(uniapi::detail::Utf8(url.path));
+    }
+    if (paths.empty()) return;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (uniapi::detail::gNotifying) uniapi::detail::gNotifying->OpenFiles(paths);
+    });
 }
 
 // The app clicked in the Dock (or opened again) with no window on screen: a hidden main window

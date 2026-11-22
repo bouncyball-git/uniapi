@@ -65,7 +65,7 @@ public:
         NSImage* image = [[NSImage alloc] initWithData:[NSData dataWithBytes:png length:size]];
         if (!image || !image.isValid || image.size.height <= 0) return false;
         image.size = NSMakeSize(std::round(kIconHeight * image.size.width / image.size.height), kIconHeight);
-        image.template = templateImage;
+        [image setTemplate:templateImage];  // not image.template: "template" is a C++ keyword in Objective-C++
         image_ = image;
         ApplyIcon();
         return true;
