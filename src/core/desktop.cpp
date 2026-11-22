@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // What crosses between the app and the rest of the desktop, the platform-independent part:
 // where a page's navigation goes, opening things with the system (checks, then the backend's
 // SystemOpen/SystemReveal), and one instance per user (AppOptions::singleInstance).

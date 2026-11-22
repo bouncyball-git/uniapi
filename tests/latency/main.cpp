@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // uniapi latency: how long messages take between C++ and the page, and how long C++'s answer to
 // a click takes to come back. Not a test with a verdict: a measure to run by hand (or with
 // --exit for the first part only), on a machine and a WebView2 you want to know about.

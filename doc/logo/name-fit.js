@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // The uniapi name ("uniapi", lettered in Orbitron, as outlines: name.js, written by make.py) placed
 // beside text on a line, the way it sits everywhere the logo and name appear:
 //

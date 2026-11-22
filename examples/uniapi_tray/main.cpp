@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // The tray: the app's icon in the menu bar (macOS), the notification area (Windows) or the
 // desktop's tray (Linux), with a menu. Closing the window hides it; the tray brings it back, and
 // its Quit ends the app. With --hidden the app starts in the tray only, as an app started at

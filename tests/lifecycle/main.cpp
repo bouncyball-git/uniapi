@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // The lifecycle test: windows that are hidden and shown again, and closing that the app decides
 // (onCloseRequested). The main window starts hidden (startHidden) and its page works while it
 // is; hide() and show() take windows off the screen and back with their pages running; a page

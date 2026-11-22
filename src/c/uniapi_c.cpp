@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // The C API (include/uniapi/uniapi.h) over the C++ library. No C++ exception may reach C code:
 // functions that can fail catch them and leave the message in uniapi_last_error(). The
 // wrappers around C callbacks run inside the library, which catches what they throw.

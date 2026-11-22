@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // The tray's platform-independent part (see uniapi/tray.hpp): its menu, its clicks, and its end
 // with the App. Each platform's icon is a Native (native.hpp).
 

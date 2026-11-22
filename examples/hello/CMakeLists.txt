@@ -1,3 +1,7 @@
+# Copyright (C) 2026 bouncyball
+# Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+# SPDX-License-Identifier: Apache-2.0
+
 add_executable(uniapi_hello WIN32 main.cpp)
 uniapi_icon(uniapi_hello)  # the uniapi logo on the .exe, the taskbar and its windows (Windows)
 set_target_properties(uniapi_hello PROPERTIES

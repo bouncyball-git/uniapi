@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // The windows test: App::openWindow against real web views. C++ opens further windows, each with
 // its own page (web/second.html), and checks calls and events both ways (a window's own
 // functions, falling back to the app's), binary data, a stream, navigation, a modal window, a

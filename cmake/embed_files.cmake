@@ -1,3 +1,7 @@
+# Copyright (C) 2026 bouncyball
+# Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+# SPDX-License-Identifier: Apache-2.0
+
 # Run by uniapi_embed() at build time when the embed tool can't run (cross-compiling): writes
 # OUTPUT, a C++ file holding every file listed in LIST (paths relative to DIRECTORY) as a byte
 # array, plus an AssetTable named NAME. Uncompressed. Two regex passes over each file's hex, so

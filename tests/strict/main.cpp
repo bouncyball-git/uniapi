@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // The strict calls test: AppOptions::strictCalls. The page calls C++'s exposed functions with the
 // two mistakes nlohmann's decoding lets through (an extra argument, an object field the type
 // hasn't), and with ones that fail either way (too few arguments, a wrong type). Strict, the two

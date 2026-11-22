@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) 2026 bouncyball
+ * Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /* The C API test: a C program (compiled as C) that drives a real page through uniapi.h and
  * exits with 0 when every check passes. The page half is web/index.html. It calls every C
  * function that can run unattended; the dialogs and uniapi_alert wait for a person, so the

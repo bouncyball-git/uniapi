@@ -1,3 +1,7 @@
+# Copyright (C) 2026 bouncyball
+# Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+# SPDX-License-Identifier: Apache-2.0
+
 # The self-test: a console program that drives a real web view through calls, events, binary
 # data, coroutines, streams, DOM command lists and page reloads; the exit code is 0 when every
 # check passes.

@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 #pragma once
 
 // A platform's tray icon (native_linux.cpp, native_windows.cpp, native_macos.mm), and the Tray's

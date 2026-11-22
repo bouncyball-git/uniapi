@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // Linux backend: a GTK window hosting WebKitGTK. Built for one of
 //   GTK 4 + webkitgtk-6.0       (UNIAPI_GTK4 defined; CMake's default when found)
 //   GTK 3 + webkit2gtk-4.1      (otherwise)

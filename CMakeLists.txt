@@ -1,3 +1,7 @@
+# Copyright (C) 2026 bouncyball
+# Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+# SPDX-License-Identifier: Apache-2.0
+
 cmake_minimum_required(VERSION 3.18)
 # macOS: the oldest version apps run on (WKWebsiteDataStore by identifier, for
 # AppOptions::dataDirectory, needs 14). Set before project(); ignored elsewhere.

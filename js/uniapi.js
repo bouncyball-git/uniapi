@@ -1,3 +1,9 @@
+/*!
+ * Copyright (C) 2026 bouncyball
+ * Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 // uniapi: the page side. Load it with <script src="/uniapi/uniapi.js"></script>;
 // the app serves it itself.
 //

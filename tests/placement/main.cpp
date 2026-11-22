@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // The placement test: where a window is and how. Its size read back; moved (setPosition, read
 // back with position) and centred; minimised and restored; maximised, its normal size kept, and
 // restored to it; kept on top; onPlacementChanged told of each; a placement put back with

@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) 2026 bouncyball
+ * Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /* uniapi for C (C99 or later; also usable from other languages through their C bindings).
  *
  * The same library as uniapi.hpp, through plain functions:

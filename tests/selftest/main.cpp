@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // uniapi self-test: runs calls in both directions, events, streams, DOM command lists and a
 // page reload against a real web view, prints each check, and exits with 0 when all pass.
 //

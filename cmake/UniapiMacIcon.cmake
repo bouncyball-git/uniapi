@@ -1,3 +1,7 @@
+# Copyright (C) 2026 bouncyball
+# Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+# SPDX-License-Identifier: Apache-2.0
+
 # Makes a macOS app icon (.icns) from an .svg or .png; run during the build for uniapi_install()
 # on macOS (cmake -P). Set by the caller: UNIAPI_ICON_SOURCE (the picture; square, best 1024 px
 # or an SVG), UNIAPI_ICON_OUTPUT (the .icns to write). sips draws every size the icon set needs

@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) 2026 bouncyball
+ * Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /* uniapi C checker: the C API's checks that need a person at the screen, one button each, like
  * the C++ checker (tests/checker) but through uniapi.h. Each result is shown on the page. Not
  * run by ctest; the C API test (tests/c_api) covers every other C function unattended.

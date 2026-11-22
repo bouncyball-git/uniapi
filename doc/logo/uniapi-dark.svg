@@ -1,3 +1,8 @@
+<!--
+  Copyright (C) 2026 bouncyball
+  Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+  SPDX-License-Identifier: Apache-2.0
+-->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-6 -6 112 112" width="512" height="512">
 <title>uniapi</title>
 <defs><clipPath id="tile"><path d="M22 0 H100 V78 A22 22 0 0 1 78 100 H22 A22 22 0 0 1 0 78 V22 A22 22 0 0 1 22 0 Z"/></clipPath>

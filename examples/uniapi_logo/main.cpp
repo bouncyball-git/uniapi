@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // The uniapi logo on any background: its versions (light, dark, gray, emboss) at every icon
 // size, on a background that changes colour by itself or as you pick it. The page is
 // web/index.html; the logo's own files (doc/logo: its SVGs and the PNGs rendered for each size)

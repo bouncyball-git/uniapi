@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // Window placements as text, fitted to the screens there are, and remembered between runs in one
 // file per program: <config>/<program>/uniapi-placement.json (Linux: $XDG_CONFIG_HOME or
 // ~/.config; macOS: ~/Library/Application Support; Windows: %AppData%).

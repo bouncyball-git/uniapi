@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // uniapi's WebKitGTK web process extension: gives the page zero-copy access to stream slots.
 //
 // WebKitGTK loads this library into each web process (the app points it at the directory

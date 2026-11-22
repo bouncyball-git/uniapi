@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // Linux side of the desktop test: the clipboard as other programs see it, through wl-copy and
 // wl-paste on Wayland, xclip on X11. Drops: not here (GTK takes them from the display server).
 

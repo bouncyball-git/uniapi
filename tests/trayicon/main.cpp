@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // The tray test: icons in the real tray. A Tray refuses an icon that isn't a PNG; an icon appears
 // (the platform shows it: macOS's menu bar, Windows' notification area, the Linux host's watcher);
 // its menu is what C++ set (macOS, where the test can read it back); choosing an item runs its

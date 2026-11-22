@@ -1,3 +1,7 @@
+# Copyright (C) 2026 bouncyball
+# Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+# SPDX-License-Identifier: Apache-2.0
+
 # The hello example in C, through uniapi.h. It shows the same page as examples/hello.
 add_executable(uniapi_hello_c WIN32 main.c)
 uniapi_icon(uniapi_hello_c)  # the uniapi logo on the .exe, the taskbar and its windows (Windows)

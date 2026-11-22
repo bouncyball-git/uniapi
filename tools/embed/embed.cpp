@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // uniapi_embed_tool: writes the C++ file uniapi_embed() compiles in (cmake/UniapiEmbed.cmake).
 // It runs at build time on the machine that builds, in one pass over each file, so embedding
 // costs milliseconds per megabyte (the CMake-only way, still the fallback when cross-compiling,

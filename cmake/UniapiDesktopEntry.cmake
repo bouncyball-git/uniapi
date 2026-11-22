@@ -1,3 +1,7 @@
+# Copyright (C) 2026 bouncyball
+# Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+# SPDX-License-Identifier: Apache-2.0
+
 # Writes and installs an app's desktop entry; run by cmake --install for uniapi_install() on
 # Linux. It runs then, not when configuring, because only then is the prefix known
 # (cmake --install --prefix), and Exec holds the installed program's full path. Set by the

@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // The Windows tray: an icon in the notification area with a tooltip and a popup menu
 // (Shell_NotifyIconW). It has a hidden window of its own for the icon's events, on the UI thread,
 // whose message loop (run()'s) delivers them.

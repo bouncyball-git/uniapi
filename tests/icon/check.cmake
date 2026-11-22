@@ -1,3 +1,7 @@
+# Copyright (C) 2026 bouncyball
+# Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+# SPDX-License-Identifier: Apache-2.0
+
 # The icon test: what uniapi_icon() writes into a Windows program, checked on every platform by
 # running this script (cmake -P): the resource script for the icon alone, the program's details
 # (its version resource) and which versions it takes. The desktop test reads the details back

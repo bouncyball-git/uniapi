@@ -1,3 +1,7 @@
+# Copyright (C) 2026 bouncyball
+# Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+# SPDX-License-Identifier: Apache-2.0
+
 # uniapi_install(<target> [DESTINATION <dir>] [NAME <name>] [ICON <file.svg|file.png>]
 #                [COMMENT <text>] [CATEGORIES <name>...] [BUNDLE_ID <id>] [VERSION <v>]
 #                [COPYRIGHT <text>])

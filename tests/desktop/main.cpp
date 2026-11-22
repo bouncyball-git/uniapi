@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // The desktop test: what crosses between the app and the rest of the desktop. The clipboard both
 // ways (text the app puts there is what other programs paste, and theirs is what the app reads),
 // a link and a new window to another site going outside (onExternalURL, which keeps them from

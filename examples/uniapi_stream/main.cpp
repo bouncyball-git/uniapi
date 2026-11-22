@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // uniapi demo: streams generated RGBA frames to a web page and measures how fast they get
 // there. Replace RenderTestPattern with a real producer (video decoder, camera, renderer...).
 //

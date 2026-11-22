@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // Embedded files' bytes (include/uniapi/assets.hpp). Compressed ones (uniapi_embed()'s COMPRESS,
 // tools/embed): assetData() inflates one on first use and keeps it, for code that reads a file
 // itself; serving a page inflates one for the request alone and keeps nothing (InflateAsset).

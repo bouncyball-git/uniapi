@@ -1,3 +1,7 @@
+# Copyright (C) 2026 bouncyball
+# Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+# SPDX-License-Identifier: Apache-2.0
+
 # The embed test: what uniapi_embed()'s BUNDLE and KEEP do, checked by running the embed tool on
 # tests/embed/web (cmake -P; no window): the entries are bundled with what they import, the
 # files that went into a bundle are not embedded by themselves, the rest is, and without

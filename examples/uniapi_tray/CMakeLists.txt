@@ -1,3 +1,7 @@
+# Copyright (C) 2026 bouncyball
+# Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+# SPDX-License-Identifier: Apache-2.0
+
 # The tray: the app's icon in the system tray with a menu; closing the window hides it there.
 # Links uniapi_tray, the part only apps with a tray carry.
 add_executable(uniapi_tray_example WIN32 main.cpp)  # the program is uniapi_tray (uniapi_tray: the library)

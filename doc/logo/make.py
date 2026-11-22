@@ -1,3 +1,7 @@
+# Copyright (C) 2026 bouncyball
+# Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+# SPDX-License-Identifier: Apache-2.0
+
 """The uniapi logo: writes its SVGs, renders its PNGs and packs its Windows icon.
 
     python doc/logo/make.py
@@ -43,6 +47,20 @@ import subprocess
 import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+# The copyright and licence header every file the script writes starts with, as the repository's
+# own files do: an SVG's as a markup comment, a script's as line comments.
+COPYRIGHT = ['Copyright (C) 2026 bouncyball',
+             "Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.",
+             'SPDX-License-Identifier: Apache-2.0']
+
+
+def svg_file(text):
+    return '<!--\n' + ''.join(f'  {line}\n' for line in COPYRIGHT) + '-->\n' + text
+
+
+def js_file(text):
+    return ''.join(f'// {line}\n' for line in COPYRIGHT) + '\n' + text
 
 VARIANTS = {
     '': {'a': '#ffffff', 'b': '#1f8fe0'},
@@ -290,13 +308,13 @@ def write_lockups():
         name = json.load(f)
     for variant in ALL:
         with open(os.path.join(HERE, f'uniapi-name{variant}.svg'), 'w', encoding='utf-8', newline='\n') as f:
-            f.write(lockup(variant, name))
+            f.write(svg_file(lockup(variant, name)))
 
 
 def main():
     for variant in ALL:
         with open(os.path.join(HERE, f'uniapi{variant}.svg'), 'w', encoding='utf-8', newline='\n') as f:
-            f.write(svg(variant))
+            f.write(svg_file(svg(variant)))
     import json
     with open(os.path.join(HERE, 'colors.json'), 'w', encoding='utf-8', newline='\n') as f:
         json.dump(colours(), f, indent=2)
@@ -313,7 +331,7 @@ def main():
               '// variant\'s colours, for name-fit.js.\n'
               f'window.UNIAPI_NAME = {json.dumps(name, indent=2)};\n')
     with open(os.path.join(HERE, 'name.js'), 'w', encoding='utf-8', newline='\n') as f:
-        f.write(script)
+        f.write(js_file(script))
     # The logo with its name.
     write_lockups()
     exe = edge_exe()

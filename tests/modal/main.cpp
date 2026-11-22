@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // The modal test (Linux): whether a modal window really keeps input from the main window, with
 // clicks. The windows test checks the rest of modal windows (and this on Windows and macOS); on
 // Linux it can't look at the main window's input, so this test clicks.

@@ -1,3 +1,7 @@
+# Copyright (C) 2026 bouncyball
+# Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+# SPDX-License-Identifier: Apache-2.0
+
 # Shell scripts keep Unix line endings, whatever the editor or OS they were saved on: bash
 # can't run a script with Windows line endings.
 *.sh text eol=lf

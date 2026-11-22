@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // Settings form for the demo. Calls the C++ functions main.cpp exposes:
 //   getState() applySettings(options) run() clearHistory() saveResults()
 // A C++ exception arrives here as a rejected promise.

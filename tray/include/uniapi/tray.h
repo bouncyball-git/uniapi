@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) 2026 bouncyball
+ * Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /* uniapi tray for C: the app's icon in the system tray, with a tooltip, a menu and a click of its
  * own (see uniapi/tray.hpp). Link uniapi_tray. Use it on the UI thread, as the app.
  *

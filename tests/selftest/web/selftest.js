@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // The page half of the uniapi self-test. C++ (main.cpp) drives the test: it calls runTests()
 // for the JavaScript-to-C++ checks and the other functions exposed here for the rest.
 'use strict';

@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // The Linux tray: org.kde.StatusNotifierItem at /StatusNotifierItem and com.canonical.dbusmenu at
 // /MenuBar, under a bus name of its own (org.kde.StatusNotifierItem-<pid>-<n>), registered with
 // org.kde.StatusNotifierWatcher once both the name is ours and the watcher is there (again when

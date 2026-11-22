@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // Linux helpers for the lifecycle test: uniapi's GTK windows, found by title. Call them on the UI
 // thread.
 

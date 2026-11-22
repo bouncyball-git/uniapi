@@ -1117,4 +1117,8 @@ doc/api.html             API guide and reference with diagrams
 
 ## License
 
-uniapi is licensed under the [Apache License, Version 2.0](LICENSE).
+Copyright (C) 2026 bouncyball
+
+uniapi is licensed under the [Apache License, Version 2.0](LICENSE): you may use, change and
+share it, in closed-source and commercial apps too, as long as you keep the copyright and the
+licence with it and mark the files you changed. It comes without any warranty.

@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // macOS backend: a Cocoa window hosting WKWebView. Objective-C++ with ARC; every other file of
 // the library is C++. Needs macOS 14 (WKWebsiteDataStore by identifier, for dataDirectory).
 // The main window and further windows (App::openWindow) are both MacWindow; MacBackend is the

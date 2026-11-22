@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // Written by doc/logo/make.py: the uniapi name's outlines (name.json) and each logo
 // variant's colours, for name-fit.js.
 window.UNIAPI_NAME = {

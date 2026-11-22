@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) 2026 bouncyball
+ * Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /* The hello example in C (uniapi.h): the page calls a C function, and C calls a JavaScript
  * function. It shows the same page as examples/hello, compiled into the program. */
 

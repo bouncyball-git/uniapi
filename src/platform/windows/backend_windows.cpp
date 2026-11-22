@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // Windows backend: Win32 windows hosting WebView2 (Chromium): the main window and further ones
 // (App::openWindow), each a WebWindow, in one WebView2 environment (one browser process).
 //

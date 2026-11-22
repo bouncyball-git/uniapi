@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // The macOS tray (Objective-C++, ARC): an NSStatusItem in the menu bar, with an image, a tooltip
 // and a menu. Everything here runs on the main thread.
 

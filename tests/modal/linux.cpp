@@ -1,3 +1,7 @@
+// Copyright (C) 2026 bouncyball
+// Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+// SPDX-License-Identifier: Apache-2.0
+
 // The modal test's clicks: made inside the app on GTK 3, handed to GTK as if from the mouse
 // through gtk_main_do_event, where GTK sends input outside a modal window to the modal window
 // instead (not through the compositor). GTK 4 has no way to make an event.
