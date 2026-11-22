@@ -476,6 +476,19 @@ void uniapi_on_second_instance(uniapi_app* app, uniapi_launch_handler handler, v
     });
 }
 
+void uniapi_on_open_files(uniapi_app* app, uniapi_paths_handler handler, void* user) {
+    GuardVoid([&] {
+        if (!handler) {
+            app->app.onOpenFiles = nullptr;
+            return;
+        }
+        app->app.onOpenFiles = [handler, user](const std::vector<std::string>& paths) {
+            const CList list(paths);
+            handler(user, list.data(), list.size());
+        };
+    });
+}
+
 void uniapi_on_file_drop(uniapi_app* app, uniapi_drop_handler handler, void* user) {
     GuardVoid([&] { app->app.onFileDrop = DropHandler(handler, user); });
 }

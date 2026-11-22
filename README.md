@@ -788,7 +788,8 @@ app.onOpenFiles = [&](const std::vector<std::string>& paths) { /* ... */ };  // 
   empty elsewhere. UI thread only. On Windows the version is known once `run()` has started
   WebView2: in any handler, and from `onConnect` on.
 - C: `single_instance`, `uniapi_on_external_url`, `uniapi_on_file_drop`,
-  `uniapi_window_on_file_drop`, `uniapi_on_second_instance`, `uniapi_clipboard_text`,
+  `uniapi_window_on_file_drop`, `uniapi_on_second_instance`, `uniapi_on_open_files` (macOS),
+  `uniapi_clipboard_text`,
   `uniapi_set_clipboard_text`, `uniapi_open_url`, `uniapi_open_path`, `uniapi_reveal_path`,
   `uniapi_web_engine`.
 

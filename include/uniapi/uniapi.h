@@ -275,6 +275,15 @@ void uniapi_on_external_url(uniapi_app* app, uniapi_url_handler handler, void* u
 typedef void (*uniapi_launch_handler)(void* user, const char* const* arguments, size_t count,
                                       const char* working_directory);
 void uniapi_on_second_instance(uniapi_app* app, uniapi_launch_handler handler, void* user);
+/* macOS: the files the system asks the app to open (a double-click in the Finder on a type the
+ * bundle declares, uniapi_install's FILE_TYPES; Open With; a drop on the Dock icon; open -a):
+ * their full paths (`count`, the list also NULL-terminated), valid while the handler runs. They
+ * never come as the program's arguments there: launched by a double-click, the app gets them once
+ * uniapi_run has started (maybe before the page has connected), later ones while it runs. No
+ * handler: the main window is shown. Windows and Linux pass files as arguments (and to
+ * uniapi_on_second_instance): never called there. See App::onOpenFiles. */
+typedef void (*uniapi_paths_handler)(void* user, const char* const* paths, size_t count);
+void uniapi_on_open_files(uniapi_app* app, uniapi_paths_handler handler, void* user);
 /* Files dropped on a window: their paths (`count`, also NULL-terminated) and where, in the
  * page's CSS pixels. */
 typedef void (*uniapi_drop_handler)(void* user, const char* const* paths, size_t count, int x, int y);
