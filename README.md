@@ -315,7 +315,7 @@ but slower (about 3 s per megabyte) and uncompressed.
 
 *API guide: [CMake: `uniapi_install()`](https://bouncyball-git.github.io/uniapi/doc/api.html#ref-cmake)*
 
-`uniapi_install(<target> [DESTINATION <dir>] [NAME <name>] [ICON <file.svg|file.png>] [COMMENT <text>] [CATEGORIES <name>...] [BUNDLE_ID <id>] [VERSION <v>] [COPYRIGHT <text>])`
+`uniapi_install(<target> [DESTINATION <dir>] [NAME <name>] [ICON <file.svg|file.png>] [COMMENT <text>] [CATEGORIES <name>...] [BUNDLE_ID <id>] [VERSION <v>] [COPYRIGHT <text>] [FILE_TYPES <ext>... [FILE_TYPE_NAME <text>] [FILE_TYPE_ID <uti>]])`
 installs an app so it runs from wherever it is installed (`cmake --install build --prefix
 <prefix>`):
 
@@ -341,6 +341,16 @@ reads entries from `~/.local/share` and `/usr/local/share` (`--prefix ~/.local` 
 `/Applications`) puts the apps where Launchpad and Spotlight find them; the build folder keeps
 the plain programs. The examples use the default, so `cmake --install build --prefix <dir>`
 (or `build.ps1` / `build.sh install`) puts them in `<dir>/bin`.
+
+On macOS, `FILE_TYPES` lists file name extensions the app opens (without the dot, any case:
+`FILE_TYPES mlv raw`). The bundle declares them as one type (`FILE_TYPE_ID`, a uniform type
+identifier, default `<bundle id>.document`; `FILE_TYPE_NAME` is what Finder calls it, default
+"`<NAME>` document") and the app as its viewer. Finder then shows those files with a document
+icon drawn from the app's (its picture on a page) instead of a blank page, and a double-click
+opens them in the app: `App::onOpenFiles` gets them (see
+[Links, dropped files, the clipboard, one instance](#links-dropped-files-the-clipboard-one-instance)).
+Several apps may declare the same identifier: use the one the format's authors or other apps
+use, if there is one.
 
 The web engine's profile (cache, storage) goes to a per-user folder named after the
 executable, which is writable wherever the app is installed: `%LOCALAPPDATA%\<app>` on
@@ -746,6 +756,7 @@ std::optional<std::string> text = co_await app.clipboardTextAsync();  // in a co
 
 options.singleInstance = "org.example.mixer";  // a second launch hands over and ends
 app.onSecondInstance = [&](const std::vector<std::string>& args, const std::string& dir) { /* ... */ };
+app.onOpenFiles = [&](const std::vector<std::string>& paths) { /* ... */ };  // macOS: the Finder, the Dock
 ```
 
 - A link, a form or `window.open` to another site, or a script going there after a click,
@@ -761,6 +772,14 @@ app.onSecondInstance = [&](const std::vector<std::string>& args, const std::stri
   (`onSecondInstance`; empty: the main window is shown) and ends in the `App` constructor
   (`std::exit(0)`), before any window opens. Per user: a Unix-domain socket in the user's
   runtime folder (Linux) or temporary folder (macOS), a named pipe on Windows.
+- `onOpenFiles` (macOS): the files the system asks the app to open, as full paths: a
+  double-click in the Finder on a type the bundle declares (`uniapi_install`'s `FILE_TYPES`),
+  Open With, files dropped on the Dock icon, `open -a`. macOS never passes them as the
+  program's arguments: launched by a double-click, the app gets them once `run()` has started
+  (maybe before the page has connected), and later ones while it runs (macOS starts no second
+  instance). The program's own command-line arguments stay arguments. Empty: the main window
+  is shown. Windows and Linux pass files as arguments (and to `onSecondInstance`): never
+  called there.
 - **The web engine.** `app.webEngine()` names the engine the pages run in and its version, for
   an About box or a bug report: `WebKitGTK` 2.50.1 on Linux (the library loaded at run time),
   `WebView2` 131.0.2903.86 on Windows (the installed runtime, so the Chromium version), `WebKit`
