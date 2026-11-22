@@ -10,9 +10,15 @@
 //                 result {id, ok, value | error, uploads?}   answer to a C++ -> JS call
 //                 event {name, data, uploads?}
 //                 release {stream, id, slot}       the page is done with a slot
-//                 unshared {stream, id}  a later stream's regions never came; it fetches
-//   app -> page   welcome {sharedMemory, streams, session}  answer to hello; shared regions follow
+//                 unshared {stream, id} | {sink, id}  a later stream's or sink's regions never
+//                                        came; it fetches (a stream) or uploads (a sink)
+//                 put {sink, id, slot, size, meta, uploads?, data?}   the page filled a sink's
+//                                        slot (data: its bytes, uploaded, without shared memory)
+//   app -> page   welcome {sharedMemory, streams, sinks, session}  answer to hello; shared
+//                                        regions follow
 //                 stream {stream: {name, id, slots, shared}}   created or replaced
+//                 sink {sink: {name, id, slots, size, shared, free}}   created or replaced
+//                 free {sink, id, slot}  C++ is done with a sink's slot (or refused it)
 //                 call / result / event  as above, the other way, with downloads? for uploads?
 //                 frame {stream, id, slot, size, meta}   a slot is ready (the page calls the
 //                                        stream's handler in the order the frames were sent)
@@ -22,6 +28,12 @@
 // stream can't touch its successor. Shared regions arrive tagged {stream, id, slot}, and not
 // necessarily in order with the messages: the page waits for a region it doesn't have yet.
 // Without shared memory the page fetches /uniapi/stream/<name>/<slot> instead.
+//
+// A sink is a stream the other way round (Window::sink): the page fills its slots and C++
+// receives them. Its regions are shared writable, tagged {sink, id, slot} (ids come from the
+// streams' counter, so the page keeps both kinds of region by id). Without them the page puts
+// a slot's bytes in its put message as binary data (uploaded as below), and C++ keeps that
+// upload as the slot's data until it releases the slot.
 //
 // A region that never arrives must not hang the page (shared memory is used only if every
 // check passes, otherwise silently not). The page waits regionTimeout (3 s by default): at
@@ -463,6 +475,40 @@ struct Stream::Impl {
     void RemoveTarget(Window::Impl* w);
 };
 
+struct Sink::Impl {
+    enum class State { Page, App };  // the page may fill it; C++ has it (published, not released)
+    struct SlotData {
+        std::unique_ptr<detail::SharedRegion> region;  // shared memory mode
+        std::shared_ptr<std::vector<uint8_t>> upload;  // what the page uploaded (no shared memory)
+        State state = State::Page;
+    };
+
+    Window::Impl* window = nullptr;  // the window it belongs to (its sinks hold it)
+    Sink* owner = nullptr;
+    std::string name;
+    uint64_t id = 0;  // new for every created or replaced sink (from the streams' counter)
+    size_t slotSize = 0;
+    int slotCount = 0;
+    bool shared = false;       // the slots are shared regions
+    bool allocated = false;
+    bool pageUploads = true;   // the current page didn't get the regions (or has none): it uploads
+    std::vector<SlotData> slots;
+    uint64_t received = 0;
+
+    void Allocate(detail::Backend& backend, bool useShared);
+    bool SharedWithPage() const { return allocated && shared && !pageUploads; }
+    json Info() const {
+        json free = json::array();
+        for (int i = 0; i < int(slots.size()); ++i) {
+            if (slots[size_t(i)].state == State::Page) free.push_back(i);
+        }
+        return {{"name", name}, {"id", id}, {"slots", slotCount}, {"size", slotSize},
+                {"shared", SharedWithPage()}, {"free", free}};
+    }
+    void Put(const json& message);   // after Window::Impl
+    void ReleaseSlot(int index);     // C++ is done with it: back to the page
+};
+
 namespace {
 
 // The main window as a BackendWindow: the backend's own window methods.
@@ -471,8 +517,8 @@ public:
     explicit MainWindow(detail::Backend& backend) : backend_(backend) {}
     void Navigate(const std::string& path) override { backend_.Navigate(path); }
     void PostToPage(const std::string& text) override { backend_.PostToPage(text); }
-    void ShareRegion(detail::SharedRegion& region, const std::string& infoJson) override {
-        backend_.ShareRegion(region, infoJson);
+    void ShareRegion(detail::SharedRegion& region, const std::string& infoJson, bool writable) override {
+        backend_.ShareRegion(region, infoJson, writable);
     }
     void SetTitle(const std::string& title) override { backend_.SetTitle(title); }
     void OpenDevTools() override { backend_.OpenDevTools(); }
@@ -520,6 +566,7 @@ struct Window::Impl : std::enable_shared_from_this<Window::Impl> {
     uint64_t nextCallId = 1;
     std::vector<std::unique_ptr<Stream>> streams;
     std::vector<Stream::Impl*> received;  // other windows' streams that reach this one's page
+    std::vector<std::unique_ptr<Sink>> sinks;
     Stream* dom = nullptr;
 
     bool ready = false;       // its web view exists
@@ -561,6 +608,14 @@ struct Window::Impl : std::enable_shared_from_this<Window::Impl> {
     void EndPage();
     void ShareStream(Stream::Impl& stream);
     void Announce(Stream::Impl& stream);  // a stream new to its connected page
+    void ShareSink(Sink::Impl& sink);
+    void AnnounceSink(Sink::Impl& sink);  // a sink new to its connected page
+    Sink::Impl* FindSink(std::string_view name) {
+        for (auto& sink : sinks) {
+            if (sink->name() == name) return sink->internal();
+        }
+        return nullptr;
+    }
     // Every stream its page receives: its own and other windows' (a copy: the loops change them).
     std::vector<Stream::Impl*> PageStreams() const {
         std::vector<Stream::Impl*> all;
@@ -1093,6 +1148,133 @@ std::vector<Window*> Stream::windows() const {
 }
 
 // ----------------------------------------------------------------------------------------
+// Sink
+
+Sink::Sink(std::unique_ptr<Impl> impl) : impl_(std::move(impl)) {
+    impl_->owner = this;
+}
+
+Sink::~Sink() = default;
+
+const std::string& Sink::name() const { return impl_->name; }
+size_t Sink::slotSize() const { return impl_->slotSize; }
+int Sink::slotCount() const { return impl_->slotCount; }
+bool Sink::shared() const {
+    if (impl_->window) UiOnly(*impl_->window, "Sink::shared");
+    return impl_->SharedWithPage() && impl_->window->pageState != Window::Impl::PageState::None;
+}
+uint64_t Sink::received() const {
+    if (impl_->window) UiOnly(*impl_->window, "Sink::received");
+    return impl_->received;
+}
+
+// Throws (std::bad_alloc) if the memory can't be had, leaving the sink unallocated: its page then
+// can't fill it (every put is refused). Without shared memory nothing is allocated: each slot's
+// data is the page's upload.
+void Sink::Impl::Allocate(detail::Backend& backend, bool useShared) {
+    allocated = false;
+    shared = false;
+    slots.clear();
+    try {
+        slots.resize(slotCount);
+        if (useShared) {
+            bool all = true;
+            for (SlotData& slot : slots) {
+                slot.region = backend.CreateSharedRegion(slotSize);
+                if (!slot.region) {
+                    all = false;  // uploads for the whole sink
+                    break;
+                }
+            }
+            shared = all;
+            if (!shared) {
+                for (SlotData& slot : slots) slot.region.reset();
+            }
+        }
+    } catch (...) {
+        shared = false;
+        slots.clear();
+        throw;
+    }
+    allocated = true;
+}
+
+// The page filled a slot (put): checked, then onData (or straight back without one). A put that
+// doesn't fit (a slot it doesn't have, too large, its data missing) is refused: the slot goes
+// back to the page.
+void Sink::Impl::Put(const json& message) {
+    Window::Impl& w = *window;
+    const int index = message.value("slot", -1);
+    if (index < 0 || index >= int(slots.size())) return;
+    SlotData& slot = slots[size_t(index)];
+    if (slot.state != State::Page) return;  // C++ has it already: not the page's to put
+    const uint64_t size = message.value("size", uint64_t(0));
+    const uint8_t* data = nullptr;  // (null for an empty upload: fine with size 0)
+    bool accepted = false;
+    if (message.value("uploads", false)) {
+        // No shared memory: its bytes came as an upload, {"$uniapi.upload": n} in data.
+        const json placeholder = message.value("data", json());
+        const uint64_t number = placeholder.is_object() ? placeholder.value(kUploadKey, uint64_t(0)) : 0;
+        auto upload = w.uploads.find(number);
+        if (upload != w.uploads.end()) {
+            slot.upload = std::move(upload->second);
+            w.uploads.erase(upload);
+            accepted = slot.upload->size() == size && size <= slotSize;
+            data = slot.upload->data();
+        }
+    } else if (slot.region && SharedWithPage()) {
+        accepted = size <= slotSize;
+        data = slot.region->data;
+    }
+    if (!accepted) {
+        slot.upload.reset();
+        w.Send({{"t", "free"}, {"sink", name}, {"id", id}, {"slot", index}, {"refused", true}});
+        return;
+    }
+    slot.state = State::App;
+    ++received;
+    auto onData = owner ? owner->onData : nullptr;  // a copy: it may replace this very sink
+    if (!onData) {
+        ReleaseSlot(index);
+        return;
+    }
+    const Sink::Slot given{index, data, size_t(size), id};
+    const json meta = message.value("meta", json());
+    RunGuarded("Sink::onData", [&] { onData(given, meta); });
+}
+
+// Back to the page: told at once if it is connected; a page that connects later learns it from
+// the sink's free list.
+void Sink::Impl::ReleaseSlot(int index) {
+    if (index < 0 || index >= int(slots.size())) return;
+    SlotData& slot = slots[size_t(index)];
+    if (slot.state != State::App) return;
+    slot.state = State::Page;
+    slot.upload.reset();
+    if (window->pageState != Window::Impl::PageState::None) {
+        window->Send({{"t", "free"}, {"sink", name}, {"id", id}, {"slot", index}});
+    }
+}
+
+void Sink::release(const Slot& slot) {
+    Impl& s = *impl_;
+    if (slot.sink != s.id) return;  // another sink's (or one this has replaced)
+    if (s.window && s.window->app && !OnUiThread(*s.window->app)) {
+        // Posted: the sink by its id (it may be replaced or gone by then), its window weakly.
+        std::weak_ptr<Window::Impl> weakWindow = s.window->shared_from_this();
+        PostToUi(*s.window->app, [weakWindow, id = s.id, index = slot.index] {
+            const auto w = weakWindow.lock();
+            if (!w) return;
+            for (auto& sink : w->sinks) {
+                if (sink->internal()->id == id) sink->internal()->ReleaseSlot(index);
+            }
+        });
+        return;
+    }
+    s.ReleaseSlot(slot.index);
+}
+
+// ----------------------------------------------------------------------------------------
 // Window
 
 Window::Window(std::shared_ptr<Impl> impl) : impl_(std::move(impl)) {}
@@ -1104,6 +1286,7 @@ Window::~Window() {
     impl.LeaveStreams();
     impl.dom = nullptr;
     impl.streams.clear();
+    impl.sinks.clear();
     impl.own.reset();
     impl.window = nullptr;
     impl.pageState = Impl::PageState::None;
@@ -1215,6 +1398,36 @@ Stream& Window::stream(const std::string& name, size_t slotSize, int slotCount) 
         w->received.push_back(&fresh);
         if (w->pageState != Impl::PageState::None) w->Announce(fresh);
     }
+    return *result;
+}
+
+Sink& Window::sink(const std::string& name, size_t slotSize, int slotCount) {
+    UiOnly(*impl_, "Window::sink");
+    if (name.empty() || name.find_first_of("/?#\"\\") != std::string::npos || name.find('\0') != std::string::npos) {
+        throw std::invalid_argument("sink names may not be empty or contain / ? # \" \\ or a NUL character");
+    }
+    if (slotSize == 0 || slotCount < 1 || slotCount > kMaxSlots) {
+        throw std::invalid_argument("sinks need a slot size above 0 and 1 to 64 slots");
+    }
+    Impl& impl = *impl_;
+    auto data = std::make_unique<Sink::Impl>();
+    data->window = &impl;
+    data->name = name;
+    data->id = impl.app->nextStreamId++;
+    data->slotSize = slotSize;
+    data->slotCount = slotCount;
+    data->pageUploads = !impl.pageShared;
+    if (impl.ready) data->Allocate(*impl.app->backend, impl.useShared);
+    auto created = std::make_unique<Sink>(std::move(data));
+    Sink* result = created.get();
+    auto existing = std::find_if(impl.sinks.begin(), impl.sinks.end(),
+                                 [&](const auto& s) { return s->name() == name; });
+    if (existing != impl.sinks.end()) {
+        *existing = std::move(created);
+    } else {
+        impl.sinks.push_back(std::move(created));
+    }
+    if (impl.pageState != Impl::PageState::None) impl.AnnounceSink(*result->internal());
     return *result;
 }
 
@@ -1676,6 +1889,10 @@ void Window::Impl::OnReady(bool sharedMemorySupported) {
             if (t.window != this && t.active && t.window->pageState != PageState::None) t.window->Announce(s);
         }
     }
+    for (auto& sink : sinks) {
+        Sink::Impl& s = *sink->internal();
+        RunGuarded("allocating a sink's memory", [&] { s.Allocate(*app->backend, useShared); });
+    }
     if (pendingNavigation && window) {
         window->Navigate(*pendingNavigation);
         pendingNavigation.reset();
@@ -1782,8 +1999,22 @@ void Window::Impl::ShareStream(Stream::Impl& stream) {
     if (!t || !stream.SharedWith(*t) || !window) return;
     for (int i = 0; i < stream.slotCount; ++i) {
         window->ShareRegion(*stream.slots[i].region,
-                            Dump({{"stream", stream.name}, {"id", stream.id}, {"slot", i}}));
+                            Dump({{"stream", stream.name}, {"id", stream.id}, {"slot", i}}), false);
     }
+}
+
+void Window::Impl::ShareSink(Sink::Impl& sink) {
+    if (!sink.SharedWithPage() || !window) return;
+    for (int i = 0; i < sink.slotCount; ++i) {
+        window->ShareRegion(*sink.slots[size_t(i)].region,
+                            Dump({{"sink", sink.name}, {"id", sink.id}, {"slot", i}}), true);
+    }
+}
+
+void Window::Impl::AnnounceSink(Sink::Impl& sink) {
+    sink.pageUploads = !pageShared;  // this page gave up on regions (or never had them)
+    Send({{"t", "sink"}, {"sink", sink.Info()}});
+    ShareSink(sink);
 }
 
 void Window::Impl::Announce(Stream::Impl& stream) {
@@ -1814,8 +2045,15 @@ void Window::Impl::StartPage(const std::string& name) {
         infos.push_back(stream->Info(*t));
         sent.push_back(stream);
     }
-    Send({{"t", "welcome"}, {"sharedMemory", useShared}, {"streams", infos}, {"session", generation}});
+    json sinkInfos = json::array();
+    for (auto& sink : sinks) {
+        sink->internal()->pageUploads = !useShared;
+        sinkInfos.push_back(sink->internal()->Info());
+    }
+    Send({{"t", "welcome"}, {"sharedMemory", useShared}, {"streams", infos}, {"sinks", sinkInfos},
+          {"session", generation}});
     for (Stream::Impl* stream : sent) ShareStream(*stream);
+    for (auto& sink : sinks) ShareSink(*sink->internal());
 }
 
 void Window::Impl::EndPage() {
@@ -1880,6 +2118,7 @@ void Window::Impl::Dispatch(const std::string& text) {
                 for (Stream::Impl* stream : PageStreams()) {
                     if (Stream::Impl::Target* t = stream->TargetOf(this)) t->pageFetches = true;
                 }
+                for (auto& sink : sinks) sink->internal()->pageUploads = true;
             }
             pageState = PageState::Connected;
             const std::string name = page;  // a copy: a handler that navigates ends the page
@@ -1914,6 +2153,19 @@ void Window::Impl::Dispatch(const std::string& text) {
         auto handler = *found;
         SenderScope scope(*app, owner);
         if (handler) handler(data);
+    } else if (type == "put") {
+        Sink::Impl* sink = FindSink(message.value("sink", ""));
+        if (!sink || message.value("id", uint64_t(0)) != sink->id) {  // replaced since: dropped
+            uploads.erase(message.value("data", json()).is_object()
+                              ? message["data"].value(kUploadKey, uint64_t(0)) : 0);
+            return;
+        }
+        sink->Put(message);
+    } else if (type == "unshared" && message.contains("sink")) {
+        // A sink created or replaced after connecting whose regions never arrived; the page
+        // uploads its slots from now on.
+        Sink::Impl* sink = FindSink(message.value("sink", ""));
+        if (sink && message.value("id", uint64_t(0)) == sink->id) sink->pageUploads = true;
     } else if (type == "unshared") {
         // A stream created or replaced after connecting whose regions never arrived; the page
         // fetches its slots from now on.

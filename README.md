@@ -32,8 +32,8 @@ app.expose({ greet: (who) => console.log('hello ' + who) });
 ```
 
 **Platforms:** Windows (WebView2) and Linux (WebKitGTK), both with zero-copy shared memory
-for streams, and macOS 14+ (WKWebView), where streams always use the fetch fallback (which is
-fast there: see Performance).
+for streams (C++ to the page) and sinks (the page to C++), and macOS 14+ (WKWebView), where
+streams always use the fetch fallback (which is fast there: see Performance) and sinks upload.
 
 **Documentation:** [`doc/api.html`](https://bouncyball-git.github.io/uniapi/doc/api.html) is the full API guide and reference, with
 diagrams of how connections, calls and streams work, published with GitHub Pages (the link opens
@@ -87,7 +87,8 @@ it; in a copy of the repository, open the file in a browser). Each part of
 - Internet access the first time you configure: CMake downloads nlohmann/json.
 - No shared memory: WKWebView has no public way to hand a page outside memory, so streams
   always fetch their slots from the app. The fetch path is fast on macOS (about 4.7 GB/s, more
-  than the other platforms' shared memory at 1080p).
+  than the other platforms' shared memory at 1080p). Sinks upload each slot's bytes as the page
+  publishes it (the same C++ API, one copy).
 - Programs in `build/` are plain executables; run from a terminal they come to the front with
   a Dock icon and menu bar of their own. `uniapi_install()` makes `.app` bundles (see
   [Installing an app](#installing-an-app)). Set `UNIAPI_DEBUG=1` to see the backend's debug
@@ -383,7 +384,9 @@ saying so where the desktop has no tray). Each run opens a window
 (without taking keyboard focus), prints
 every check, and exits with 0 only if all of them pass. The API test (C++20) checks calls in
 both directions, errors, events, binary data both ways, coroutines, streams with
-backpressure, replacing a stream, DOM command lists, a page reload and the fallback when
+backpressure, replacing a stream, sinks (every byte the page writes checked in C++,
+backpressure, a release from another thread, replacing, a reload, the upload fallback, and a
+speed comparison with `Bytes`), DOM command lists, a page reload and the fallback when
 shared memory doesn't reach the page. The C API test is a C program that calls every function
 in `uniapi.h` that can run unattended (all but `uniapi_alert` and the two file dialogs). A run
 takes about a second (the API test about 3 s on Windows; about 1.5 s on Linux). On a brand-new
@@ -526,8 +529,9 @@ follows the mode too (Light makes it light on a dark desktop), where on Windows 
 stays the system's. On macOS the mode is the window's appearance (Aqua or Dark Aqua), per
 window.
 
-**Threads.** `App`, `Window` and `Stream` belong to the UI thread: the one that made the `App`,
-where every handler, timer and posted function runs.
+**Threads.** `App`, `Window`, `Stream` and `Sink` belong to the UI thread: the one that made the
+`App`, where every handler, timer and posted function runs (`Sink::onData` too). `Sink::release`
+works from any thread, so a worker can process a slot and hand it back.
 
 - Methods that only do something (`emit`, `call`, `setTitle`, `show`, `hide`, `close`,
   `navigate`, `expose`, `on`, `quit`, `cancel`, `serve`, `setPosition`, `minimize`...) work
@@ -535,7 +539,7 @@ where every handler, timer and posted function runs.
   they happen a moment later, in order with other posted work (`call`'s `done` runs on the UI
   thread).
 - Methods that answer something or must act at once (`connected`, `page`, `visible`, `size`,
-  `placement`, `webEngine`, `stream`, `sendDom`, `openWindow`, `windows`, `every`, the dialogs, `run`,
+  `placement`, `webEngine`, `stream`, `sink`, `sendDom`, `openWindow`, `windows`, `every`, the dialogs, `run`,
   `Stream::acquire` and `publish`...) throw `std::logic_error` when called elsewhere, naming
   themselves, instead of racing with the UI thread. A worker may fill a stream slot's memory
   between `acquire` and `publish`, both on the UI thread.
@@ -1052,6 +1056,19 @@ unthrottled drawing ran at roughly half these rates.
   in ~11 ms; the rest is Chromium delivering it to the page. That's fine for UI-sized data
   (a 1 MB image takes ~7 ms) and too slow for full-HD video. WebKitGTK's fetch is about twice
   as fast (~0.28 GB/s).
+
+The page to C++ (a sink), Windows 11, WebView2, the self-test's measure (`uniapi_test`): 8 MB a
+frame (a 1080p frame at 16 bits a channel, or 4K at 8), 30 frames, C++ handing each slot straight
+back:
+
+| | Per 8 MB frame |
+|---|---|
+| Sink, shared memory | ~0.28 ms (no copy: handing the slot over and back) |
+| Sink, uploads (no shared memory) | ~120 ms |
+| `Bytes` in a call (uploaded) | ~107 ms |
+
+The page writes into the slot itself (`readPixels` straight into `slot.bytes`, say), so with
+shared memory the only copy is the one that fills it.
 
 ## Project layout
 

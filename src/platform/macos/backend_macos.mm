@@ -450,7 +450,7 @@ public:
         NSString* script = Ns("window.__uniapi&&window.__uniapi.receive(" + JsString(text) + ")");
         [view_ evaluateJavaScript:script inFrame:nil inContentWorld:WKContentWorld.pageWorld completionHandler:nil];
     }
-    void ShareRegion(SharedRegion&, const std::string&) override {}  // never made on macOS
+    void ShareRegion(SharedRegion&, const std::string&, bool) override {}  // never made on macOS
 
     void SetTitle(const std::string& title) override {
         setup_.title = title;
@@ -948,7 +948,9 @@ public:
     void Navigate(const std::string& path) override { main_->Navigate(path); }
     void PostToPage(const std::string& text) override { main_->PostToPage(text); }
     std::unique_ptr<SharedRegion> CreateSharedRegion(size_t) override { return nullptr; }
-    void ShareRegion(SharedRegion& region, const std::string& infoJson) override { main_->ShareRegion(region, infoJson); }
+    void ShareRegion(SharedRegion& region, const std::string& infoJson, bool writable) override {
+        main_->ShareRegion(region, infoJson, writable);
+    }
 
     // Posted functions run in order, on the main thread, also while a dialog or a window drag
     // runs its own loop (common modes).

@@ -33,6 +33,10 @@ using namespace std::chrono_literals;
 
 constexpr size_t kSlotBytes = 256 * 1024;
 constexpr int kSlots = 3;
+constexpr size_t kSinkBytes = 256 * 1024;      // the "in" sink the page fills
+constexpr int kSinkSlots = 3;
+constexpr size_t kBenchBytes = 8 * 1024 * 1024;  // the "bench" sink: a 1080p RGBA frame or so
+constexpr int kBenchFrames = 30;
 constexpr auto kTimeout = 30s;
 
 uint8_t PatternByte(int seed, size_t i) {
@@ -74,6 +78,8 @@ private:
     void ExposeFunctions();
     void AddSteps();
     bool PublishSlot(const uniapi::Stream::Slot& slot, int seed, size_t size, bool hold);
+    void WatchSink(uniapi::Sink& sink);
+    void FillSink(const std::string& check, int count, int seed, json sizes, Done done);
     bool Publish(int seed, size_t size, bool hold);
     void CheckStreamStats(const std::string& name, Done done);
     uniapi::Task<> CoroutineChecks(Done done);
@@ -97,6 +103,12 @@ private:
     int disconnects_ = 0;
     uniapi::Stream* stream_ = nullptr;
     uniapi::Stream* hugeStream_ = nullptr;  // too large to allocate
+    uniapi::Sink* sink_ = nullptr;        // "in": the page fills it, WatchSink checks every slot
+    uniapi::Sink* benchSink_ = nullptr;   // "bench": the speed test's
+    std::vector<uniapi::Sink::Slot> sinkHeld_;  // slots the page asked C++ to keep (hold)
+    int sinkGood_ = 0;
+    int sinkBad_ = 0;
+    std::string sinkProblem_;  // the first slot that arrived wrong
     int published_ = 0;  // frames published on stream_ to the current page
     Done onReconnect_;
     bool bytesGoneAfterAnswer_ = false;
@@ -392,6 +404,12 @@ void SelfTest::CheckBeforeRun() {
     uniapi::Stream::Slot slot;
     Check("acquire() fails without a page", !stream_->acquire(slot));
 
+    sink_ = &app_.sink("in", kSinkBytes, kSinkSlots);
+    WatchSink(*sink_);
+    benchSink_ = &app_.sink("bench", kBenchBytes, 3);
+    benchSink_->onData = [this](const uniapi::Sink::Slot& s, const json&) { benchSink_->release(s); };
+    Check("Sink::shared() is false without a page", !sink_->shared());
+
     auto throws = [](const std::function<void()>& fn) {
         try {
             fn();
@@ -403,6 +421,9 @@ void SelfTest::CheckBeforeRun() {
     Check("stream() refuses a name with /", throws([&] { app_.stream("bad/name", 16, 1); }));
     Check("stream() refuses 0 slots", throws([&] { app_.stream("zero", 16, 0); }));
     Check("stream() refuses the library's own name", throws([&] { app_.stream("uniapi.dom", 16, 1); }));
+    Check("sink() refuses a name with /", throws([&] { app_.sink("bad/name", 16, 1); }));
+    Check("sink() refuses 0 slots and 0 bytes",
+          throws([&] { app_.sink("zero", 16, 0); }) && throws([&] { app_.sink("zero", 0, 1); }));
 
     // Embedded files (uniapi_embed): a text file is stored compressed (when the embed tool
     // compressed this build) and comes back whole; a file of a compressed type (.png) is stored
@@ -466,6 +487,20 @@ void SelfTest::ExposeFunctions() {
     });
     app_.expose("nothing", [] {});
     app_.expose("connectedWhenCalled", [this] { return app_.connected(); });
+    // Sinks: one held slot back to the page from another thread; how many slots arrived; Bytes
+    // for the speed comparison.
+    app_.expose("sinkReleaseOne", [this] {
+        if (sinkHeld_.empty()) return false;
+        const uniapi::Sink::Slot slot = sinkHeld_.back();
+        sinkHeld_.pop_back();
+        uniapi::Sink* sink = sink_;
+        std::thread([sink, slot] { sink->release(slot); }).join();  // posts itself to the UI thread
+        return true;
+    });
+    app_.expose("sinkReceived", [this](const std::string& name) {
+        return (name == "bench" ? benchSink_ : sink_)->received();
+    });
+    app_.expose("takeBytes", [](const uniapi::Bytes& bytes) { return bytes.size(); });
     // A cross-origin iframe in the page tries every way to call this; none may get through.
     app_.expose("calledFromIframe", [this] { iframeReachedCpp_ = true; });
     app_.expose("wasCalledFromIframe", [this] { return iframeReachedCpp_; });
@@ -601,6 +636,48 @@ void SelfTest::CheckStreamStats(const std::string& name, Done done) {
         const bool ok = r.ok && r.value.value("frames", -1) == published_ && r.value.value("bad", -1) == 0;
         Check(name, ok, Describe(r) + ", published " + std::to_string(published_));
         done();
+    });
+}
+
+// Every slot the page puts in `sink` is checked against the pattern its meta names (seed, size);
+// meta.hold keeps it (sinkHeld_) instead of handing it straight back.
+void SelfTest::WatchSink(uniapi::Sink& sink) {
+    uniapi::Sink* s = &sink;
+    sink.onData = [this, s](const uniapi::Sink::Slot& slot, const json& meta) {
+        const int seed = meta.value("seed", 0);
+        const size_t size = meta.value("size", size_t(0));
+        std::string problem;
+        if (slot.size != size) problem = "got " + std::to_string(slot.size) + " bytes, expected " + std::to_string(size);
+        for (size_t i = 0; problem.empty() && i < slot.size; ++i) {
+            if (slot.data[i] != PatternByte(seed, i)) problem = "byte " + std::to_string(i) + " differs";
+        }
+        if (problem.empty()) {
+            ++sinkGood_;
+        } else {
+            ++sinkBad_;
+            if (sinkProblem_.empty()) sinkProblem_ = problem;
+        }
+        if (meta.value("hold", false)) {
+            sinkHeld_.push_back(slot);
+        } else {
+            s->release(slot);
+        }
+    };
+}
+
+// The page fills `count` slots of "in" (sizes in turn), then they must all arrive intact.
+void SelfTest::FillSink(const std::string& check, int count, int seed, json sizes, Done done) {
+    sinkGood_ = 0;
+    sinkBad_ = 0;
+    sinkProblem_.clear();
+    app_.call("sinkFill", json::array({"in", count, seed, sizes, false}),
+              [this, check, count, done](const uniapi::Result& r) {
+        Check("the page publishes every slot it fills", r.ok && r.value.value("sent", 0) == count, Describe(r));
+        WaitUntil([this, count] { return sinkGood_ + sinkBad_ >= count; }, [this, check, count, done] {
+            Check(check, sinkBad_ == 0 && sinkGood_ == count,
+                  sinkProblem_.empty() ? std::to_string(sinkGood_) + " intact" : sinkProblem_);
+            done();
+        });
     });
 }
 
@@ -818,6 +895,70 @@ void SelfTest::AddSteps() {
         });
     });
 
+    Step("Sinks: the page fills slots", [this](Done done) {
+        FillSink("every slot reaches C++ intact (sizes 0 to 256 KB)", 30, 1000,
+                 json::array({0, 1, 4096, kSinkBytes, 77777}), [this, done] {
+            Check("Sink::shared() matches App::sharedMemory()", sink_->shared() == app_.sharedMemory());
+            Check("Sink::received() counts them", sink_->received() >= 30, std::to_string(sink_->received()));
+            app_.call("sinkShared", json::array({"in"}), [this, done](const uniapi::Result& r) {
+                Check("the page's sink.shared agrees", r.ok && r.value == json(app_.sharedMemory()), Describe(r));
+                done();
+            });
+        });
+    });
+
+    Step("Sinks: backpressure", [this](Done done) {
+        sinkGood_ = 0;
+        sinkBad_ = 0;
+        app_.call("sinkFill", json::array({"in", kSinkSlots, 2000, json::array({100}), true}),
+                  [this, done](const uniapi::Result&) {
+            WaitUntil([this] { return int(sinkHeld_.size()) >= kSinkSlots; }, [this, done] {
+                Check("C++ keeps slots until it releases them", int(sinkHeld_.size()) == kSinkSlots);
+                app_.call("sinkBackpressure", json::array({"in", 2100}), [this, done](const uniapi::Result& r) {
+                    Check("acquire() waits while C++ has every slot", r.ok && r.value.value("blocked", false),
+                          Describe(r));
+                    Check("release() from another thread gives the page one",
+                          r.ok && r.value.value("resumed", false), Describe(r));
+                    WaitUntil([this] { return sinkGood_ + sinkBad_ >= kSinkSlots + 1; }, [this, done] {
+                        for (const auto& slot : sinkHeld_) sink_->release(slot);
+                        sinkHeld_.clear();
+                        Check("those slots arrived intact", sinkBad_ == 0, sinkProblem_);
+                        done();
+                    });
+                });
+            });
+        });
+    });
+
+    Step("Sinks: a size the slot can't hold", [this](Done done) {
+        app_.call("sinkTooBig", json::array({"in"}), [this, done](const uniapi::Result& r) {
+            Check("publish() throws RangeError for more bytes than the slot holds", r.ok && r.value == json(true),
+                  Describe(r));
+            done();
+        });
+    });
+
+    Step("Sinks: replaced while connected", [this](Done done) {
+        sinkHeld_.clear();
+        sink_ = &app_.sink("in", 4096, 2);
+        WatchSink(*sink_);
+        Check("a replaced sink starts empty",
+              sink_->received() == 0 && sink_->slotSize() == 4096 && sink_->slotCount() == 2);
+        FillSink("slots of the replaced sink arrive intact", 6, 3000, json::array({4096, 10}), done);
+    });
+
+    Step("Sinks: speed", [this](Done done) {
+        app_.call("sinkBench", json::array({"bench", kBenchFrames, kBenchBytes}), [this, done](const uniapi::Result& r) {
+            Check("the speed test runs", r.ok, Describe(r));
+            if (r.ok) {
+                Note("8 MB frames, page to C++: sink " + r.value.value("sink", json()).dump() + " ms a frame (" +
+                     (r.value.value("shared", false) ? "shared memory, no copy" : "uploaded") + "), Bytes " +
+                     r.value.value("bytes", json()).dump() + " ms a frame (uploaded)");
+            }
+            done();
+        });
+    });
+
     Step("DOM command lists", [this](Done done) {
         const bool first = app_.sendDom([](uniapi::DomCommandWriter& dom) {
             dom.Bind(10, "#bind-target");
@@ -890,6 +1031,13 @@ void SelfTest::AddSteps() {
         });
     });
 
+    Step("Sinks on the reloaded page", [this](Done done) {
+        FillSink("slots from the new page arrive intact", 4, 5000, json::array({1000, 4096}), [this, done] {
+            Check("Sink::shared() matches App::sharedMemory()", sink_->shared() == app_.sharedMemory());
+            done();
+        });
+    });
+
     // Shared regions that never reach the page must not hang it: it falls back to fetching.
     // ?regions=... makes the page ignore its regions (a test hook in web/selftest.js).
     Step("Shared memory that never arrives", [this](Done done) {
@@ -931,6 +1079,28 @@ void SelfTest::AddSteps() {
             });
         };
         app_.navigate("/index.html?regions=later");
+    });
+
+    // This page (?regions=later) ignores regions that come after it connected: a sink made now
+    // uploads instead.
+    Step("Sinks: shared memory for a later sink that never arrives", [this](Done done) {
+        sinkHeld_.clear();
+        sink_ = &app_.sink("in", 8192, 2);
+        WatchSink(*sink_);
+        FillSink("its slots arrive intact, uploaded", 4, 6000, json::array({8192, 5}), [this, done] {
+            if (sharedAtStart_) Check("Sink::shared() reports the uploads", !sink_->shared());
+            done();
+        });
+    });
+
+    Step("Sinks without shared memory", [this](Done done) {
+        onReconnect_ = [this, done] {
+            FillSink("slots arrive intact through uploads", 4, 7000, json::array({8192, 1}), [this, done] {
+                if (sharedAtStart_) Check("Sink::shared() reports the uploads", !sink_->shared());
+                done();
+            });
+        };
+        app_.navigate("/index.html?regions=all");
     });
 }
 

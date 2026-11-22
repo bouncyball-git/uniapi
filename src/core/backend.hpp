@@ -121,7 +121,7 @@ public:
     virtual ~BackendWindow() = default;
     virtual void Navigate(const std::string& path) = 0;
     virtual void PostToPage(const std::string& text) = 0;
-    virtual void ShareRegion(SharedRegion& region, const std::string& infoJson) = 0;
+    virtual void ShareRegion(SharedRegion& region, const std::string& infoJson, bool writable) = 0;
     virtual void SetTitle(const std::string& title) = 0;
     virtual void SetFullscreen(bool on) = 0;
     virtual void SetSize(int width, int height) = 0;
@@ -168,9 +168,11 @@ public:
     virtual void PostToPage(const std::string& text) = 0;
     // nullptr when shared memory isn't available.
     virtual std::unique_ptr<SharedRegion> CreateSharedRegion(size_t bytes) = 0;
-    // Gives the page access to `region`; it arrives with `infoJson`.
-    // A region that doesn't arrive is handled by the page, which falls back to fetching.
-    virtual void ShareRegion(SharedRegion& region, const std::string& infoJson) = 0;
+    // Gives the page access to `region`; it arrives with `infoJson`. `writable`: the page writes
+    // into it and the app reads what it wrote (a Sink's slot); otherwise the page only reads (a
+    // Stream's), and anything it writes stays its own. A region that doesn't arrive is handled
+    // by the page, which falls back to fetching (a stream) or uploading (a sink).
+    virtual void ShareRegion(SharedRegion& region, const std::string& infoJson, bool writable) = 0;
     virtual void Post(std::function<void()> fn) = 0;  // thread-safe
     virtual bool OnUiThread() const = 0;
     virtual void SetTitle(const std::string& title) = 0;

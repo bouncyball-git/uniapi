@@ -10,6 +10,9 @@
 //   app.emit('clicked', { id: 3 });                   // events to C++ (app.on)
 //   app.stream('frames', (bytes, meta) => ...);       // large data from C++ (App::stream)
 //   app.unstream('frames');                           // stops receiving it
+//   const sink = app.sink('pixels');                  // large data to C++ (App::sink):
+//   const slot = await sink.acquire();                //   a free slot: slot.buffer, slot.bytes
+//   sink.publish(slot, size, meta);                   //   fill it, then hand it over
 //   await app.native.thumbnail(file, 200);            // binary data to C++ (uniapi::Bytes)
 //
 // Binary values (ArrayBuffer, typed arrays, DataView, Blob/File) can go anywhere in a call's
@@ -22,6 +25,10 @@
 // Stream bytes are a view of shared memory when the platform supports it (Windows, Linux), and a
 // fetched copy otherwise. Either way they are valid only until the handler returns or the
 // promise it returns settles; copy anything you keep (bytes.slice()).
+//
+// A sink slot's buffer is shared memory C++ reads in place when the platform supports it, and a
+// buffer of the page's own otherwise (publish then uploads its bytes). From publish() until C++
+// hands the slot back (acquire() gives it again) it is C++'s: don't touch its buffer.
 //
 // The protocol is described at the top of src/core/app.cpp.
 (function () {
@@ -223,7 +230,13 @@
         // mention them, so they are kept by id and waited for when missing.
         const regions = new Map();        // id -> [ArrayBuffer per slot]
         const regionWaiters = new Map();  // "id/slot" -> [resolve]
-        const retired = new Set();        // ids of replaced streams
+        const retired = new Set();        // ids of replaced streams and sinks
+        // Sinks by name: { id, slots, size, shared, free (slot numbers the page may fill), local
+        // (a buffer per slot without shared memory) }. Slots the page acquires leave `free`; C++
+        // gives them back with a free message. sinkWaiters: acquire() calls waiting for a slot
+        // (or for the sink itself, before C++ has made it).
+        const sinks = new Map();
+        const sinkWaiters = new Map();    // name -> [resolve]
         let releaseRegion = () => {};
         // A region that never arrives must not hang the page: after this long the page fetches
         // instead (all streams when it happens while connecting, else just that stream).
@@ -304,6 +317,26 @@
             });
         }
 
+        function wakeSink(name) {
+            const waiters = sinkWaiters.get(name);
+            sinkWaiters.delete(name);
+            if (waiters) waiters.forEach((resolve) => resolve());
+        }
+
+        function addSink(info) {
+            const previous = sinks.get(info.name);
+            if (previous && previous.id !== info.id) {
+                retired.add(previous.id);
+                for (const buffer of regions.get(previous.id) || []) if (buffer) releaseRegion(buffer);
+                regions.delete(previous.id);
+            }
+            sinks.set(info.name, {
+                id: info.id, slots: info.slots, size: info.size, shared: info.shared && sharedOk,
+                free: new Set(info.free || []), local: [],
+            });
+            wakeSink(info.name);
+        }
+
         // The regions didn't all arrive while connecting: fetch every stream from now on.
         function giveUpSharedMemory() {
             console.warn(`uniapi: shared memory regions didn't arrive within ${regionTimeout} ms; ` +
@@ -311,6 +344,7 @@
             sharedOk = false;
             capabilities.sharedMemory = false;
             for (const entry of streams.values()) entry.shared = false;
+            for (const entry of sinks.values()) entry.shared = false;  // (sinks upload instead)
             for (const list of regions.values()) for (const buffer of list) if (buffer) releaseRegion(buffer);
             regions.clear();
             for (const waiters of regionWaiters.values()) waiters.forEach((resolve) => resolve());
@@ -319,7 +353,7 @@
 
         function missingRegions() {
             let missing = 0;
-            for (const entry of streams.values()) {
+            for (const entry of [...streams.values(), ...sinks.values()]) {
                 if (!entry.shared) continue;
                 const list = regions.get(entry.id) || [];
                 for (let slot = 0; slot < entry.slots; slot++) if (!list[slot]) missing++;
@@ -361,7 +395,7 @@
             const dropped = dropRegions === 'all' || (dropRegions === 'later' && isReady);
             // Not wanted: a replaced stream's, after giving up on shared memory, or for a stream
             // that already switched to fetching because its regions came too late.
-            const fetching = (id) => [...streams.values()].some((entry) => entry.id === id && !entry.shared);
+            const fetching = (id) => [...streams.values(), ...sinks.values()].some((entry) => entry.id === id && !entry.shared);
             if (!info || info.id === undefined || retired.has(info.id) || !sharedOk || dropped || fetching(info.id)) {
                 release(buffer);
                 return;
@@ -453,6 +487,7 @@
                 capabilities.sharedMemory = !!message.sharedMemory;
                 resolveSession(message.session);
                 message.streams.forEach(addStream);
+                (message.sinks || []).forEach(addSink);
                 welcomed = true;
                 checkReady();
                 if (!isReady) {
@@ -469,6 +504,17 @@
             case 'frame':
                 deliver(message);
                 break;
+            case 'sink':  // C++ created or replaced a sink; its regions come separately
+                addSink(message.sink);
+                break;
+            case 'free': {  // C++ is done with a sink's slot (or refused what was put in it)
+                const entry = sinks.get(message.sink);
+                if (!entry || entry.id !== message.id) break;  // a replaced sink's
+                if (message.refused) console.warn(`uniapi: sink "${message.sink}" refused slot ${message.slot}`);
+                entry.free.add(message.slot);
+                wakeSink(message.sink);
+                break;
+            }
             case 'call':
                 answer(message);
                 break;
@@ -541,6 +587,69 @@
             }
         }
 
+        // A sink's handle (app.sink): acquire() waits for a free slot and gives { buffer, bytes }
+        // to fill (shared memory where C++ reads it in place, else a buffer of the page's own);
+        // publish() hands it to C++ with its size and meta (uploading its bytes without shared
+        // memory). Until C++ gives it back the slot is C++'s: the page mustn't touch its buffer.
+        function sinkHandle(name) {
+            return {
+                name,
+                get shared() { const entry = sinks.get(name); return !!(entry && entry.shared); },
+                get size() { const entry = sinks.get(name); return entry ? entry.size : 0; },
+                async acquire() {
+                    await ready;
+                    for (;;) {
+                        const entry = sinks.get(name);
+                        if (entry && entry.free.size) {
+                            const index = entry.free.values().next().value;
+                            entry.free.delete(index);
+                            let buffer = null;
+                            if (entry.shared) {
+                                buffer = (regions.get(entry.id) || [])[index] || await regionFor(entry.id, index);
+                                if (sinks.get(name) !== entry) continue;  // replaced while waiting
+                                if (!buffer && entry.shared) {
+                                    // Its regions never came: upload from now on.
+                                    console.warn(`uniapi: shared memory for sink "${name}" didn't arrive; ` +
+                                                 'it uploads instead');
+                                    entry.shared = false;
+                                    send({ t: 'unshared', sink: name, id: entry.id });
+                                }
+                            }
+                            if (!buffer || !entry.shared) {
+                                buffer = entry.local[index] || (entry.local[index] = new ArrayBuffer(entry.size));
+                            }
+                            return { sink: name, id: entry.id, index, buffer, bytes: new Uint8Array(buffer) };
+                        }
+                        await new Promise((resolve) => {
+                            if (!sinkWaiters.has(name)) sinkWaiters.set(name, []);
+                            sinkWaiters.get(name).push(resolve);
+                        });
+                    }
+                },
+                // False if the sink has been replaced since the slot was acquired (it is dropped).
+                publish(slot, size, meta = null) {
+                    const entry = sinks.get(slot.sink);
+                    if (!entry || entry.id !== slot.id) return false;
+                    if (!Number.isInteger(size) || size < 0 || size > entry.size) {
+                        throw new RangeError(`uniapi: sink "${slot.sink}" slots hold 0 to ${entry.size} bytes`);
+                    }
+                    const message = { t: 'put', sink: slot.sink, id: slot.id, slot: slot.index, size, meta };
+                    const inRegion = entry.shared && (regions.get(entry.id) || [])[slot.index] === slot.buffer;
+                    if (!inRegion) message.data = new Uint8Array(slot.buffer, 0, size);
+                    // Through the queue: after any message still waiting for its uploads.
+                    sendWithBinary(message, 'data', (err) => {
+                        console.error(`uniapi: sink "${slot.sink}" slot not sent`, err);
+                        const now = sinks.get(slot.sink);
+                        if (now && now.id === slot.id) {  // the slot is the page's again
+                            now.free.add(slot.index);
+                            wakeSink(slot.sink);
+                        }
+                    });
+                    return true;
+                },
+            };
+        }
+
         async function answer({ id, fn, args }) {
             const target = exposed.get(fn);
             try {
@@ -606,6 +715,10 @@
             stream(name, handler) {
                 streamHandlers.set(name, handler);
                 return app;
+            },
+            // The sink C++ made under this name (App::sink): see sinkHandle above.
+            sink(name) {
+                return sinkHandle(name);
             },
             // Stops receiving a stream: its handler isn't called again (one that is running
             // finishes), and the frames that still arrive are handed back unread.

@@ -344,10 +344,13 @@ public:
     void PostToPage(const std::string& text) override {
         if (webview_) webview_->PostWebMessageAsString(Wide(text).c_str());
     }
-    void ShareRegion(SharedRegion& region, const std::string& infoJson) override {
+    void ShareRegion(SharedRegion& region, const std::string& infoJson, bool writable) override {
         auto& windowsRegion = static_cast<WindowsRegion&>(region);
         if (!webview17_) return;
-        webview17_->PostSharedBufferToScript(windowsRegion.buffer.Get(), COREWEBVIEW2_SHARED_BUFFER_ACCESS_READ_ONLY,
+        // A sink's slot: the page writes, the app reads that very memory. A stream's: read-only.
+        webview17_->PostSharedBufferToScript(windowsRegion.buffer.Get(),
+                                             writable ? COREWEBVIEW2_SHARED_BUFFER_ACCESS_READ_WRITE
+                                                      : COREWEBVIEW2_SHARED_BUFFER_ACCESS_READ_ONLY,
                                              Wide(infoJson).c_str());
     }
     bool SharedBuffers() const { return webview17_ != nullptr; }
@@ -955,8 +958,8 @@ public:
         return region;
     }
 
-    void ShareRegion(SharedRegion& region, const std::string& infoJson) override {
-        main_->ShareRegion(region, infoJson);
+    void ShareRegion(SharedRegion& region, const std::string& infoJson, bool writable) override {
+        main_->ShareRegion(region, infoJson, writable);
     }
 
     void Post(std::function<void()> fn) override {

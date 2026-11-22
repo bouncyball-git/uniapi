@@ -266,13 +266,16 @@ void PostScript(WebKitWebView* view, const std::string& text) {
 
 // A shared region to the view's page, through uniapi's web process extension (which maps it).
 // Each view gets its own copy of the file descriptor: one region can go to several pages.
-void SendRegion(WebKitWebView* view, SharedRegion& region, const std::string& infoJson) {
+// `writable` (a sink's slot): the extension maps it shared, so the page's writes reach the app;
+// otherwise (a stream's) copy-on-write, so they stay the page's own.
+void SendRegion(WebKitWebView* view, SharedRegion& region, const std::string& infoJson, bool writable) {
     auto& linuxRegion = static_cast<LinuxRegion&>(region);
     if (!view || linuxRegion.fd < 0) return;
     GUnixFDList* fds = g_unix_fd_list_new();
     if (g_unix_fd_list_append(fds, linuxRegion.fd, nullptr) >= 0) {  // duplicates it
         WebKitUserMessage* message = webkit_user_message_new_with_fd_list(
-            "uniapi.region", g_variant_new("(st)", infoJson.c_str(), guint64(linuxRegion.size)), fds);
+            "uniapi.region",
+            g_variant_new("(stb)", infoJson.c_str(), guint64(linuxRegion.size), gboolean(writable)), fds);
         webkit_web_view_send_message_to_page(view, message, nullptr, nullptr, nullptr);
     }
     g_object_unref(fds);
@@ -1483,8 +1486,8 @@ public:
         return region;
     }
 
-    void ShareRegion(SharedRegion& region, const std::string& infoJson) override {
-        SendRegion(webview_, region, infoJson);
+    void ShareRegion(SharedRegion& region, const std::string& infoJson, bool writable) override {
+        SendRegion(webview_, region, infoJson, writable);
     }
 
     void Post(std::function<void()> fn) override {
@@ -2491,7 +2494,9 @@ public:
         if (webview_) webkit_web_view_load_uri(webview_, (backend_.Origin() + path).c_str());
     }
     void PostToPage(const std::string& text) override { PostScript(webview_, text); }
-    void ShareRegion(SharedRegion& region, const std::string& infoJson) override { SendRegion(webview_, region, infoJson); }
+    void ShareRegion(SharedRegion& region, const std::string& infoJson, bool writable) override {
+        SendRegion(webview_, region, infoJson, writable);
+    }
 
     void SetTitle(const std::string& title) override {
         options_.title = title;

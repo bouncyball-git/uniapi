@@ -27,6 +27,70 @@ const info = (bytes) => {
     for (let i = 0; i < bytes.length; i++) sum += bytes[i] * (i % 251 + 1);
     return { size: bytes.length, sum };
 };
+// Sinks (main.cpp: "in", "bench"): the page fills slots with the pattern, C++ checks them.
+async function fillSink(name, count, seed, sizes, hold) {
+    const sink = app.sink(name);
+    let sent = 0;
+    for (let k = 0; k < count; k++) {
+        const slot = await sink.acquire();
+        const size = Math.min(sizes[k % sizes.length], sink.size);
+        for (let i = 0; i < size; i++) slot.bytes[i] = patternByte(seed + k, i);
+        if (sink.publish(slot, size, { seed: seed + k, size, hold })) sent++;
+    }
+    return { sent, shared: sink.shared };
+}
+app.expose({
+    sinkFill: fillSink,
+    sinkShared: (name) => app.sink(name).shared,
+    // C++ has every slot: acquire() must wait, until C++ releases one (from another thread).
+    async sinkBackpressure(name, seed) {
+        const sink = app.sink(name);
+        let got = null;
+        const pending = sink.acquire().then((slot) => { got = slot; });
+        await sleep(300);
+        const blocked = got === null;
+        await app.native.sinkReleaseOne();
+        await Promise.race([pending, sleep(3000)]);
+        if (!got) return { blocked, resumed: false };
+        for (let i = 0; i < 64; i++) got.bytes[i] = patternByte(seed, i);
+        sink.publish(got, 64, { seed, size: 64, hold: false });
+        return { blocked, resumed: true };
+    },
+    async sinkTooBig(name) {
+        const sink = app.sink(name);
+        const slot = await sink.acquire();
+        let threw = false;
+        try {
+            sink.publish(slot, sink.size + 1, null);
+        } catch (err) {
+            threw = err instanceof RangeError;
+        }
+        sink.publish(slot, 0, { seed: 0, size: 0, hold: false });  // the slot back
+        return threw;
+    },
+    // Page to C++ speed: frames through the sink (C++ hands each back at once), then the same
+    // through Bytes (a call's binary argument, uploaded).
+    async sinkBench(name, frames, size) {
+        const sink = app.sink(name);
+        let start = performance.now();
+        for (let k = 0; k < frames; k++) {
+            const slot = await sink.acquire();
+            slot.bytes[0] = k & 0xff;
+            sink.publish(slot, size, null);
+        }
+        await app.native.sinkReceived(name);  // after the puts: C++ has had them all
+        const sinkMs = performance.now() - start;
+        const buffer = new Uint8Array(size);
+        start = performance.now();
+        const calls = [];
+        for (let k = 0; k < frames; k++) calls.push(app.native.takeBytes(buffer));
+        await Promise.all(calls);
+        const bytesMs = performance.now() - start;
+        // (with shared memory nothing is copied: the sink's time is handing slots over and back)
+        return { sink: +(sinkMs / frames).toFixed(2), bytes: +(bytesMs / frames).toFixed(2), shared: sink.shared };
+    },
+});
+
 const binLog = [];  // the "binlog" events from C++, for the ordering check
 app.on('binlog', (d) => binLog.push(d.data ? `${d.n}:${d.data.length}` : `${d.n}`));
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

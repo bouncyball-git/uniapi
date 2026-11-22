@@ -365,6 +365,52 @@ private:
     std::unique_ptr<Impl> impl_;
 };
 
+// A pool of equally sized slots the page fills and C++ receives in order: a Stream the other way
+// round, for large data from the page (pixels read back from WebGL, recorded sound). Create one
+// with App::sink() (or a further window's sink()). The page gets it with app.sink(name): it
+// acquires a free slot, writes into its bytes and publishes it with a size and meta; onData
+// receives it, and release() hands it back. With shared memory C++ reads the very memory the
+// page wrote, no copy (Windows: WebView2 shared buffers the page may write; Linux: memfd regions
+// uniapi's web extension maps shared). Without it (macOS, AppOptions::sharedMemory false, or a
+// page whose regions didn't arrive) the page uploads a slot's bytes as it publishes it: the same
+// onData, one copy.
+//
+// What the page wrote is untrusted: a published size larger than the slot is refused, but the
+// bytes are whatever the page put there, and with shared memory a misbehaving page could still
+// change them while C++ reads (never outside the slot).
+class Sink {
+public:
+    struct Slot {
+        int index = -1;
+        const uint8_t* data = nullptr;  // what the page wrote: size bytes
+        size_t size = 0;
+        uint64_t sink = 0;  // internal: which sink (a replaced one's slots are ignored)
+    };
+
+    // A slot the page published, on the UI thread, in the order the page published them. Its data
+    // stays valid, and the page can't use the slot again, until release(slot): call it when done,
+    // from any thread (after a worker has encoded the data, say). Without onData each slot goes
+    // back at once.
+    std::function<void(const Slot& slot, const json& meta)> onData;
+    // Hands a slot back to the page. Any thread; the Sink must still exist. A slot released
+    // already, or one of a sink since replaced: nothing happens.
+    void release(const Slot& slot);
+
+    const std::string& name() const;
+    size_t slotSize() const;
+    int slotCount() const;
+    bool shared() const;        // true: the current page writes into shared memory (zero-copy)
+    uint64_t received() const;  // slots the page has published so far
+
+    struct Impl;  // internal
+    explicit Sink(std::unique_ptr<Impl> impl);
+    ~Sink();
+    Impl* internal() const { return impl_.get(); }
+
+private:
+    std::unique_ptr<Impl> impl_;
+};
+
 class App;
 namespace detail {
 int AddEndingStep(App& app, std::function<void()> step);  // see src/core/ending.hpp
@@ -527,6 +573,11 @@ public:
     // that memory can't be had, stream() throws std::bad_alloc (or, for a stream created before
     // the web view, the failure is printed to stderr and its acquire() returns false).
     Stream& stream(const std::string& name, size_t slotSize, int slotCount);
+    // Creates or replaces a sink: slots the page fills (app.sink(name)) and C++ receives
+    // (Sink::onData). Replacing destroys the old Sink, as stream() does a Stream; the page's
+    // slots of the old one are dropped. Its names share nothing with streams'. The slots are
+    // allocated once the web view exists (shared memory), as a stream's.
+    Sink& sink(const std::string& name, size_t slotSize, int slotCount);
     // Sends one DOM command list (see dom.hpp). Returns false if no page is connected or the
     // previous lists haven't been applied yet.
     bool sendDom(const std::function<void(DomCommandWriter&)>& write);

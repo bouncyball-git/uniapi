@@ -7,13 +7,15 @@
 //   "uniapi.hello"   handshake; the reply (a boolean) tells the app whether shared memory is
 //                    safe here: JavaScriptCore's Gigacage must be off in this process (see
 //                    backend_linux.cpp), otherwise wrapping outside memory aborts the process
-//   "uniapi.region"  parameters (info JSON, size) plus one memfd: the region is mapped and
-//                    handed to the page as an ArrayBuffer over that memory, through
+//   "uniapi.region"  parameters (info JSON, size, writable) plus one memfd: the region is mapped
+//                    and handed to the page as an ArrayBuffer over that memory, through
 //                    window.__uniapi.region(info, buffer) (see js/uniapi.js)
 //
-// The mapping is private copy-on-write: the page sees what the app writes, but if page code
-// writes into the buffer it gets its own copy of that memory page instead of crashing or
-// changing the app's data. The buffer is unmapped when JavaScript garbage-collects it.
+// A stream's region (writable false) is mapped private copy-on-write: the page sees what the app
+// writes, but if page code writes into the buffer it gets its own copy of that memory page
+// instead of crashing or changing the app's data. A sink's (writable true) is mapped shared: the
+// page writes into it and the app reads what it wrote. The buffer is unmapped when JavaScript
+// garbage-collects it.
 //
 // Kept apart from the uniapi library on purpose: it only needs WebKitGTK's extension API.
 
@@ -51,16 +53,17 @@ void Unmap(gpointer data) {
 
 void HandleRegion(WebKitWebPage* page, WebKitUserMessage* message) {
     GVariant* parameters = webkit_user_message_get_parameters(message);
-    if (!parameters || !g_variant_is_of_type(parameters, G_VARIANT_TYPE("(st)"))) return;
+    if (!parameters || !g_variant_is_of_type(parameters, G_VARIANT_TYPE("(stb)"))) return;
     const char* info = nullptr;
     guint64 size = 0;
-    g_variant_get(parameters, "(&st)", &info, &size);
+    gboolean writable = FALSE;
+    g_variant_get(parameters, "(&stb)", &info, &size, &writable);
     GUnixFDList* fds = webkit_user_message_get_fd_list(message);
     if (size == 0 || !fds || g_unix_fd_list_get_length(fds) < 1) return;
 
     int fd = g_unix_fd_list_get(fds, 0, nullptr);  // a duplicate we own
     if (fd < 0) return;
-    void* data = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
+    void* data = mmap(nullptr, size, PROT_READ | PROT_WRITE, writable ? MAP_SHARED : MAP_PRIVATE, fd, 0);
     close(fd);
     if (data == MAP_FAILED) return;
 

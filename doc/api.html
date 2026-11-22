@@ -218,6 +218,7 @@ tr.group td { background: var(--lane); font: 600 12px/1.3 var(--font-mono); lett
         <a href="#events">Events</a>
         <a href="#bytes">Binary data in calls</a>
         <a href="#streams">Streams</a>
+        <a href="#sinks">Sinks: large data to C++</a>
         <a href="#dom">DOM command lists</a>
         <a href="#threads">Threads</a>
         <a href="#latency">Latency</a>
@@ -820,7 +821,45 @@ app.stream('frames', (bytes, meta) =&gt; {
                 <li>Names may not be empty or contain <code>/ ? # " \</code> or a NUL character, and <code>uniapi.dom</code> is taken by the library; <code>stream()</code> throws <code>std::invalid_argument</code> for these. Slot count is 1 to 64.</li>
                 <li>The page calls a stream's handler in publish order, in both modes. A handler that returns a promise keeps its slot until the promise settles, and the next frame's handler can start meanwhile.</li>
                 <li>With more than one slot, the page may be handling slot 2 while C++ fills slot 0. More slots smooth out jitter; fewer keep latency low.</li>
-                <li>Streams go from C++ to the page only. Send data the other way as call arguments.</li>
+                <li>Streams go from C++ to the page only. For large data the other way use a <a href="#sinks">sink</a>; small data can go as call arguments.</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<!-- ============================================================ SINKS -->
+<section id="sinks">
+    <h2>Sinks: large data to C++</h2>
+    <div class="prose">
+        <p>A sink is a stream the other way round: a fixed pool of equally sized slots that the <em>page</em> fills and C++ receives. The page acquires a free slot, writes into its bytes, and publishes it with a size and some JSON; <code>onData</code> gets it on the UI thread, and <code>release()</code> hands it back. The pool is the backpressure: while C++ holds every slot, the page's <code>acquire()</code> waits.</p>
+        <p>With shared memory (Windows, Linux) the slot the page writes is the memory C++ reads: nothing is copied on the way. The page can even write into it directly, with <code>readPixels</code> into <code>slot.bytes</code>, say. Without shared memory (macOS, <code>AppOptions::sharedMemory</code> false, or a page whose regions didn't arrive) the page writes into a buffer of its own and <code>publish()</code> uploads its bytes: the same code on both sides, one copy. Measured on Windows: an 8 MB frame takes about 0.28 ms with shared memory, about 120 ms uploaded (and about 107 ms as <code>Bytes</code> in a call).</p>
+    </div>
+
+<pre>uniapi::Sink&amp; pixels = app.sink("pixels", 1920 * 1080 * 8, <span class="c">/*slots=*/</span>3);
+pixels.onData = [&amp;](const uniapi::Sink::Slot&amp; slot, const json&amp; meta) {
+    <span class="c">// slot.data, slot.size: the page's bytes, valid until release(slot)</span>
+    std::thread([&amp;pixels, slot, meta] {
+        SavePng(meta["path"], slot.data, meta["width"], meta["height"]);
+        pixels.release(slot);                            <span class="c">// from any thread</span>
+    }).detach();
+};</pre>
+<pre><span class="c">// page</span>
+const pixels = app.sink('pixels');
+const slot = await pixels.acquire();                     <span class="c">// waits for a free slot</span>
+gl.readPixels(0, 0, w, h, gl.RGBA_INTEGER, gl.UNSIGNED_SHORT, new Uint16Array(slot.buffer, 0, w * h * 4));
+pixels.publish(slot, w * h * 8, { path, width: w, height: h });</pre>
+
+    <div class="note"><strong>From <code>publish()</code> until C++ releases it, the slot is C++'s.</strong> The page must not touch its buffer: with shared memory C++ is reading that very memory. And what the page wrote is untrusted: a size larger than the slot is refused, but the bytes are whatever the page put there.</div>
+
+    <div class="sub">
+        <h3>Rules</h3>
+        <div class="prose">
+            <ul>
+                <li>Create sinks before or after <code>run()</code>, as streams; with shared memory the slots are allocated once the web view exists, <code>slotSize × slotCount</code> up front. Without it nothing is allocated in C++: each slot's data is the page's upload, kept until <code>release()</code>.</li>
+                <li>Calling <code>sink()</code> again with the same name replaces it; the old <code>Sink&amp;</code> becomes invalid, and a connected page is told at once (a slot it acquired from the old one isn't published: <code>publish()</code> returns false). Names follow the streams' rules (no <code>/ ? # " \</code>, no NUL); a sink and a stream may share a name. Slot count is 1 to 64.</li>
+                <li><code>onData</code> runs on the UI thread, in the order the page published. <code>release()</code> works from any thread, so a worker can process the slot first. Without <code>onData</code> each slot goes straight back.</li>
+                <li>A page that reloads finds the sink again, with the slots C++ isn't holding free; a slot C++ releases later goes to whichever page is connected then.</li>
+                <li>In C++, <code>Sink::shared()</code> says whether the current page writes into shared memory; on the page, <code>sink.shared</code>.</li>
             </ul>
         </div>
     </div>
@@ -918,10 +957,10 @@ app.stream('frames', (bytes, meta) =&gt; {
 <section id="threads">
     <h2>Threads and the event loop</h2>
     <div class="prose">
-        <p><code>App</code>, <code>Window</code> and <code>Stream</code> belong to the thread that created the App: the UI thread, where <code>run()</code> runs the event loop and every handler, timer and callback runs. GTK, Cocoa and WebView2 work only from there.</p>
+        <p><code>App</code>, <code>Window</code>, <code>Stream</code> and <code>Sink</code> belong to the thread that created the App: the UI thread, where <code>run()</code> runs the event loop and every handler, timer and callback runs. GTK, Cocoa and WebView2 work only from there.</p>
         <ul>
-            <li><strong>Methods that only do something work from any thread.</strong> <code>emit</code>, <code>call</code>, <code>setTitle</code>, <code>setSize</code>, <code>show</code>, <code>hide</code>, <code>close</code>, <code>navigate</code>, <code>expose</code>, <code>on</code>, <code>quit</code>, <code>cancel</code>, <code>serve</code>, <code>setPosition</code>, <code>minimize</code>, <code>maximize</code>, <code>restore</code>, <code>setAlwaysOnTop</code>, <code>setPlacement</code>, <code>setClipboardText</code>, <code>clipboardText</code>, <code>Stream::removeWindow</code>: called elsewhere, they post themselves to the UI thread and return at once, so they happen a moment later, in order with other posted work. <code>call</code>'s <code>done</code> runs on the UI thread. (<code>setAlwaysOnTop</code> and <code>setClipboardText</code> then return true: asked.)</li>
-            <li><strong>Methods that answer something or must act at once throw elsewhere.</strong> <code>connected</code>, <code>page</code>, <code>sharedMemory</code>, <code>visible</code>, <code>fullscreen</code>, <code>titleBar</code>, <code>size</code>, <code>position</code>, <code>minimized</code>, <code>maximized</code>, <code>alwaysOnTop</code>, <code>placement</code>, <code>setIcon</code>, <code>stream</code>, <code>sendDom</code>, <code>openWindow</code>, <code>windows</code>, <code>sender</code>, <code>every</code> (and so <code>co_await sleep</code>), the dialogs, <code>run</code>, and <code>Stream::acquire</code>, <code>publish</code>, <code>addWindow</code>, <code>windows</code>, <code>delivered</code>, <code>shared</code> throw <code>std::logic_error</code>, naming themselves: from another thread they would race with the UI thread, and crash, hang or be lost depending on the platform. A worker may fill a stream slot's memory between <code>acquire</code> and <code>publish</code>, both on the UI thread.</li>
+            <li><strong>Methods that only do something work from any thread.</strong> <code>emit</code>, <code>call</code>, <code>setTitle</code>, <code>setSize</code>, <code>show</code>, <code>hide</code>, <code>close</code>, <code>navigate</code>, <code>expose</code>, <code>on</code>, <code>quit</code>, <code>cancel</code>, <code>serve</code>, <code>setPosition</code>, <code>minimize</code>, <code>maximize</code>, <code>restore</code>, <code>setAlwaysOnTop</code>, <code>setPlacement</code>, <code>setClipboardText</code>, <code>clipboardText</code>, <code>Stream::removeWindow</code>, <code>Sink::release</code>: called elsewhere, they post themselves to the UI thread and return at once, so they happen a moment later, in order with other posted work. <code>call</code>'s <code>done</code> runs on the UI thread. (<code>setAlwaysOnTop</code> and <code>setClipboardText</code> then return true: asked.)</li>
+            <li><strong>Methods that answer something or must act at once throw elsewhere.</strong> <code>connected</code>, <code>page</code>, <code>sharedMemory</code>, <code>visible</code>, <code>fullscreen</code>, <code>titleBar</code>, <code>size</code>, <code>position</code>, <code>minimized</code>, <code>maximized</code>, <code>alwaysOnTop</code>, <code>placement</code>, <code>setIcon</code>, <code>stream</code>, <code>sink</code>, <code>sendDom</code>, <code>openWindow</code>, <code>windows</code>, <code>sender</code>, <code>every</code> (and so <code>co_await sleep</code>), the dialogs, <code>run</code>, and <code>Stream::acquire</code>, <code>publish</code>, <code>addWindow</code>, <code>windows</code>, <code>delivered</code>, <code>shared</code>, and <code>Sink::shared</code>, <code>received</code> throw <code>std::logic_error</code>, naming themselves: from another thread they would race with the UI thread, and crash, hang or be lost depending on the platform. A worker may fill a stream slot's memory between <code>acquire</code> and <code>publish</code>, both on the UI thread.</li>
             <li><strong>Safe anywhere:</strong> <code>App::post(fn)</code> (run <code>fn</code> soon on the UI thread), <code>notify</code>, <code>Reply</code> (answer a call from any thread; the answer is passed to the UI thread for you), <code>onUiThread()</code>, and <code>co_await app.switchToUi()</code>.</li>
         </ul>
     </div>
@@ -1298,6 +1337,10 @@ std::function&lt;void(const std::vector&lt;std::string&gt;&amp; arguments, const
             <div class="desc"><p>Creates a stream, or replaces the one with that name (the old reference becomes invalid). Throws <code>std::invalid_argument</code> for an empty name, a name containing <code>/ ? # " \</code>, the name <code>uniapi.dom</code>, a slot size of 0, or a slot count outside 1–64. The reference stays valid until the stream is replaced or the app is destroyed. See <a href="#ref-stream"><code>Stream</code></a>.</p></div>
         </div>
         <div class="entry">
+            <pre class="sig"><span class="ret">Sink&amp;</span> sink(const std::string&amp; name, size_t slotSize, int slotCount);</pre>
+            <div class="desc"><p>Creates a sink, slots the page fills, or replaces the one with that name (the old reference becomes invalid). Throws <code>std::invalid_argument</code> as <code>stream()</code> does. See <a href="#ref-sink"><code>Sink</code></a> and <a href="#sinks">Sinks</a>.</p></div>
+        </div>
+        <div class="entry">
             <pre class="sig"><span class="ret">bool</span> sendDom(const std::function&lt;void(DomCommandWriter&amp;)&gt;&amp; write);</pre>
             <div class="desc"><p>Calls <code>write</code> to fill one DOM command list (up to 64 KB) and sends it. Returns false, without calling <code>write</code>, if no page is connected or both list slots are still with the page; try again on the next update. See <a href="#ref-dom"><code>DomCommandWriter</code></a>.</p></div>
         </div>
@@ -1426,7 +1469,7 @@ struct WebEngine { std::string name, version, variant; };</pre>
 <span class="ret">void</span> expose(std::string name, F fn);   <span class="ret">void</span> on(std::string event, handler);
 <span class="ret">void</span> call(function, args, done);       <span class="ret">void</span> emit(event, data);
 <span class="ret">CallAwaiter</span> callAsync(function, args);
-<span class="ret">Stream&amp;</span> stream(name, slotSize, slotCount);   <span class="ret">bool</span> sendDom(write);
+<span class="ret">Stream&amp;</span> stream(name, slotSize, slotCount);   <span class="ret">Sink&amp;</span> sink(name, slotSize, slotCount);   <span class="ret">bool</span> sendDom(write);
 std::function&lt;void(const std::string&amp;)&gt; onConnect, onDisconnect;
 <span class="ret">bool</span> connected() const;   <span class="ret">const std::string&amp;</span> page() const;   <span class="ret">bool</span> sharedMemory() const;
 <span class="ret">void</span> setTitle(…);  setSize(…);  setFullscreen(…);  setTitleBar(…);  show();  hide();  setIcon(…);
@@ -1578,6 +1621,37 @@ explicit Bytes(std::shared_ptr&lt;const std::vector&lt;uint8_t&gt;&gt; data);</p
         </div>
     </div>
 
+    <div class="ref" id="ref-sink">
+        <div class="head">
+            <h3><code>class Sink</code></h3>
+            <p>A pool of equally sized slots that the page fills and C++ receives. Create one with <code>App::sink()</code>; see <a href="#sinks">Sinks</a>.</p>
+        </div>
+        <div class="entry">
+            <pre class="sig">struct Slot {
+    int index = -1;
+    const uint8_t* data = nullptr;   <span class="c">// what the page wrote</span>
+    size_t size = 0;
+    uint64_t sink = 0;               <span class="c">// internal: which sink</span>
+};</pre>
+        </div>
+        <div class="entry">
+            <pre class="sig">std::function&lt;void(const Slot&amp; slot, const json&amp; meta)&gt; onData;</pre>
+            <div class="desc"><p>A slot the page published, on the UI thread, in publish order; <code>meta</code> is the JSON the page passed. <code>slot.data</code> stays valid, and the page can't use the slot, until <code>release(slot)</code>. Without <code>onData</code> slots go straight back.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">void</span> release(const Slot&amp; slot);</pre>
+            <div class="desc"><p>Hands the slot back to the page. Any thread (from a worker it posts itself to the UI thread); the <code>Sink</code> must still exist. A slot already released, or one of a sink since replaced: nothing happens.</p></div>
+        </div>
+        <div class="entry">
+            <pre class="sig"><span class="ret">const std::string&amp;</span> name() const;
+<span class="ret">size_t</span>   slotSize() const;
+<span class="ret">int</span>      slotCount() const;
+<span class="ret">bool</span>     shared() const;
+<span class="ret">uint64_t</span> received() const;</pre>
+            <div class="desc"><p><code>shared()</code> is true while the connected page writes into shared memory, false when it uploads (or no page is connected). <code>received()</code> counts the slots the page has published.</p></div>
+        </div>
+    </div>
+
     <div class="ref" id="ref-dom">
         <div class="head">
             <h3><code>class DomCommandWriter</code></h3>
@@ -1713,6 +1787,13 @@ app.unstream(name) <span class="ret">→ app</span></pre>
             <div class="desc"><p>Receives a stream's slots. <code>bytes</code> is a <code>Uint8Array</code> of exactly the published size; <code>meta</code> is the JSON passed to <code>publish()</code>. The slot goes back to C++ when the handler returns, or when its returned Promise settles, so <code>await</code> inside it holds the slot. Copy what you keep with <code>bytes.slice()</code>. Errors are logged and the slot is still handed back. <code>unstream</code> stops receiving it: the handler isn't called again (one that is running finishes), and the frames that still arrive are handed back unread.</p></div>
         </div>
         <div class="entry">
+            <pre class="sig">const sink = app.sink(name)
+await sink.acquire() <span class="ret">→ { buffer, bytes, index, … }</span>
+sink.publish(slot, size, meta) <span class="ret">→ boolean</span>
+sink.shared, sink.size</pre>
+            <div class="desc"><p>Fills a sink's slots (<a href="#sinks">Sinks</a>). <code>acquire()</code> waits for a free slot (and for the sink, before C++ has made it) and gives its <code>buffer</code> (an <code>ArrayBuffer</code> of the slot size) and <code>bytes</code> (a <code>Uint8Array</code> over it): shared memory C++ reads in place where the platform supports it, a buffer of the page's own otherwise. <code>publish()</code> hands the first <code>size</code> bytes to C++ with <code>meta</code>, uploading them without shared memory; it throws <code>RangeError</code> for a size outside 0 to <code>sink.size</code>, and returns false (dropping the slot) if the sink was replaced since. Until C++ releases the slot, don't touch its buffer. <code>sink.shared</code>: true while this page writes into shared memory.</p></div>
+        </div>
+        <div class="entry">
             <pre class="sig">app.show()        <span class="ret">void</span></pre>
             <div class="desc"><p>Shows the window, kept invisible until the page is drawn when C++ set <code>AppOptions::showWhenReady</code>: call it once the page has built itself (after two animation frames, so it is on screen). Without that option the window appears when the page has loaded, and this does nothing.</p></div>
         </div>
@@ -1844,7 +1925,7 @@ int main(void) {
             <thead><tr><th>Direction</th><th>Message</th><th>Meaning</th></tr></thead>
             <tbody>
                 <tr><td class="dir">page → app</td><td class="k">hello {page}</td><td>The page called <code>uniapi.connect()</code>; starts a new connection</td></tr>
-                <tr><td class="dir">app → page</td><td class="k">welcome {sharedMemory, streams, session}</td><td>The answer to <code>hello</code>; <code>session</code> names this connection's uploads. Lists each stream's <code>name, id, slots, shared</code>. In shared mode one region per slot is shared too, tagged <code>{stream, id, slot}</code></td></tr>
+                <tr><td class="dir">app → page</td><td class="k">welcome {sharedMemory, streams, sinks, session}</td><td>The answer to <code>hello</code>; <code>session</code> names this connection's uploads. Lists each stream's <code>name, id, slots, shared</code> and each sink's <code>name, id, slots, size, shared, free</code> (the slots the page may fill). In shared mode one region per slot is shared too, tagged <code>{stream, id, slot}</code> (read-only) or <code>{sink, id, slot}</code> (writable)</td></tr>
                 <tr><td class="dir">page → app</td><td class="k">ready {sharedMemory?}</td><td>Every shared region is mapped, or with <code>sharedMemory: false</code> the page gave up waiting and fetches; C++ runs <code>onConnect</code></td></tr>
                 <tr><td class="dir">page → app</td><td class="k">POST /uniapi/upload/&lt;session&gt;/&lt;n&gt;</td><td>Not a message: a request carrying one binary value, which the message that follows refers to as <code>{"$uniapi.upload": n}</code></td></tr>
                 <tr><td class="dir">page → app</td><td class="k">GET /uniapi/download/&lt;token&gt;</td><td>Not a message: fetches one <code>Bytes</code> C++ sent, once, for a placeholder <code>{"$uniapi.download": "&lt;token&gt;"}</code></td></tr>
@@ -1855,6 +1936,10 @@ int main(void) {
                 <tr><td class="dir">app → page</td><td class="k">frame {stream, id, slot, size, meta}</td><td>A slot is ready. In fetch mode the page then requests <code>/uniapi/stream/&lt;name&gt;/&lt;slot&gt;</code>. The page hands a stream's frames to its handler in the order they arrive, even when their bytes are ready out of order</td></tr>
                 <tr><td class="dir">page → app</td><td class="k">release {stream, id, slot}</td><td>The page is done with that slot; ignored if the stream was replaced since</td></tr>
                 <tr><td class="dir">page → app</td><td class="k">unshared {stream, id}</td><td>That stream's regions never arrived; the page fetches its slots from now on</td></tr>
+                <tr><td class="dir">app → page</td><td class="k">sink {sink: {name, id, slots, size, shared, free}}</td><td>A sink was created or replaced while a page is connected; in shared mode its regions are shared too, writable</td></tr>
+                <tr><td class="dir">page → app</td><td class="k">put {sink, id, slot, size, meta, uploads?, data?}</td><td>The page filled a sink's slot. Without shared memory <code>data</code> is an upload placeholder for its bytes. C++ refuses a slot that isn't the page's, a size over the slot's, or missing data (it answers <code>free</code> with <code>refused</code>); a put for a replaced sink is dropped</td></tr>
+                <tr><td class="dir">app → page</td><td class="k">free {sink, id, slot, refused?}</td><td>C++ released the slot (or refused what was put in it): the page may fill it again</td></tr>
+                <tr><td class="dir">page → app</td><td class="k">unshared {sink, id}</td><td>That sink's regions never arrived; the page uploads its slots from now on</td></tr>
             </tbody>
         </table>
     </div>
