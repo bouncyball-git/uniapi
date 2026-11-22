@@ -64,6 +64,18 @@ app.expose({
     jsBytes: () => ({ label: 'b', data: new Uint8Array([1, 2, 3]) }),
     jsBytesInfo: (bytes) => ({ isBytes: bytes instanceof Uint8Array, size: bytes.length, sum: weighted(bytes) }),
     frameSeen: () => frame,
+    // Fills count slots of a sink with the pattern (seed + k), sizes in turn; C checks them.
+    async sinkFill(name, count, seed, sizes) {
+        const sink = app.sink(name);
+        let sent = 0;
+        for (let k = 0; k < count; k++) {
+            const slot = await sink.acquire();
+            const size = Math.min(sizes[k % sizes.length], sink.size);
+            for (let i = 0; i < size; i++) slot.bytes[i] = patternByte(seed + k, i);
+            if (sink.publish(slot, size, { seed: seed + k, size })) sent++;
+        }
+        return { sent, shared: sink.shared };
+    },
     // DOM lists arrive through a stream, so in fetch mode they can land after this call: wait.
     async domText() {
         for (let i = 0; i < 200 && !document.getElementById('from-c'); i++) {

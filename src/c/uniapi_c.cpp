@@ -96,6 +96,8 @@ const json* Find(const json& document, const char* pointer) {
 
 uniapi::Stream* StreamOf(uniapi_stream* stream) { return reinterpret_cast<uniapi::Stream*>(stream); }
 const uniapi::Stream* StreamOf(const uniapi_stream* stream) { return reinterpret_cast<const uniapi::Stream*>(stream); }
+uniapi::Sink* SinkOf(uniapi_sink* sink) { return reinterpret_cast<uniapi::Sink*>(sink); }
+const uniapi::Sink* SinkOf(const uniapi_sink* sink) { return reinterpret_cast<const uniapi::Sink*>(sink); }
 uniapi::DomCommandWriter* DomOf(uniapi_dom* dom) { return reinterpret_cast<uniapi::DomCommandWriter*>(dom); }
 
 uniapi::Window& WindowOf(uniapi_window* window) {
@@ -698,6 +700,47 @@ uint64_t uniapi_stream_delivered(const uniapi_stream* stream) {
     return Guard<uint64_t>(0, [&] { return StreamOf(stream)->delivered(); });
 }
 
+// --- Sinks ---------------------------------------------------------------------------------------------
+
+uniapi_sink* uniapi_sink_create(uniapi_app* app, const char* name, size_t slot_size, int slot_count) {
+    return Guard<uniapi_sink*>(nullptr, [&] {
+        return reinterpret_cast<uniapi_sink*>(&app->app.sink(Str(name), slot_size, slot_count));
+    });
+}
+
+void uniapi_sink_on_data(uniapi_sink* sink, uniapi_sink_handler handler, void* user) {
+    GuardVoid([&] {
+        if (!handler) {
+            SinkOf(sink)->onData = nullptr;
+            return;
+        }
+        SinkOf(sink)->onData = [handler, user](const uniapi::Sink::Slot& slot, const json& meta) {
+            const uniapi_sink_slot s{slot.index, slot.data, slot.size, slot.sink};
+            const std::string text = Text(meta);
+            handler(user, &s, text.c_str());
+        };
+    });
+}
+
+void uniapi_sink_release(uniapi_sink* sink, const uniapi_sink_slot* slot) {
+    GuardVoid([&] {
+        if (!slot) throw std::invalid_argument("uniapi_sink_release: no slot");
+        uniapi::Sink::Slot s;
+        s.index = slot->index;
+        s.data = slot->data;
+        s.size = slot->size;
+        s.sink = slot->sink;
+        SinkOf(sink)->release(s);
+    });
+}
+
+int uniapi_sink_shared(const uniapi_sink* sink) {
+    return Guard(0, [&] { return SinkOf(sink)->shared() ? 1 : 0; });
+}
+uint64_t uniapi_sink_received(const uniapi_sink* sink) {
+    return Guard<uint64_t>(0, [&] { return SinkOf(sink)->received(); });
+}
+
 // --- DOM command lists ----------------------------------------------------------------------------
 
 namespace {
@@ -928,6 +971,12 @@ int uniapi_window_shared_memory(const uniapi_window* window) {
 uniapi_stream* uniapi_window_stream_create(uniapi_window* window, const char* name, size_t slot_size, int slot_count) {
     return Guard<uniapi_stream*>(nullptr, [&] {
         return reinterpret_cast<uniapi_stream*>(&WindowOf(window).stream(Str(name), slot_size, slot_count));
+    });
+}
+
+uniapi_sink* uniapi_window_sink_create(uniapi_window* window, const char* name, size_t slot_size, int slot_count) {
+    return Guard<uniapi_sink*>(nullptr, [&] {
+        return reinterpret_cast<uniapi_sink*>(&WindowOf(window).sink(Str(name), slot_size, slot_count));
     });
 }
 

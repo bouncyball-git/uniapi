@@ -865,9 +865,22 @@ static void add(void* user, const char* args, const uniapi_bytes* bytes, uniapi_
 // ... uniapi_app* app = uniapi_app_new(&options); uniapi_expose(app, "add", add, NULL); uniapi_run(app);
 ```
 
+Large data both ways, as from C++: `uniapi_stream_create` (C to the page: `_acquire`, fill
+`slot.data`, `_publish`) and `uniapi_sink_create` (the page to C, zero-copy with shared memory).
+A sink's handler gets each slot the page published, its bytes and its meta as JSON text; release
+it when done, from any thread (a copy of the `uniapi_sink_slot` struct is all it takes):
+
+```c
+static void on_frame(void* user, const uniapi_sink_slot* slot, const char* meta) {
+    encode(slot->data, slot->size);           // what the page wrote, size bytes
+    uniapi_sink_release((uniapi_sink*)user, slot);
+}
+// ... uniapi_sink* in = uniapi_sink_create(app, "frames", 8 << 20, 3); uniapi_sink_on_data(in, on_frame, in);
+```
+
 More windows from C: `uniapi_open_window(app, &options)` (with `uniapi_window_options_init`)
 gives a `uniapi_window*`; `uniapi_window_navigate`, `_expose`, `_on`, `_emit`, `_call`,
-`_on_connect`, `_on_disconnect`, `_on_closed`, `_close`, `_stream_create`, `_send_dom`,
+`_on_connect`, `_on_disconnect`, `_on_closed`, `_close`, `_stream_create`, `_sink_create`, `_send_dom`,
 `_set_title`, `_set_size`, ... act on it, and `uniapi_main_window(app)` is the main window as
 one. `uniapi_stream_add_window(stream, window)` / `_remove_window` send a stream to more windows.
 

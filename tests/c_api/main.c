@@ -34,6 +34,11 @@ static int keep_open = 1; /* --exit clears it */
 static int finished;      /* finish() ran: every step did */
 static uniapi_stream* stream;
 static int slots_freed;                 /* uniapi_stream_on_slot_freed calls */
+static uniapi_sink* sink;               /* the page fills it (sinkFill), on_sink_data checks it */
+static int sink_slots, sink_intact;     /* slots on_sink_data got, and how many held the pattern */
+static int sink_meta_ok = 1;            /* each slot's meta named its seed and size */
+static int sink_held_set;               /* the first slot, kept until the page is done */
+static uniapi_sink_slot sink_held;
 static int dom_overflow_big = -1;       /* uniapi_dom_overflowed after a too-big command */
 static int dom_overflow_small = -1;     /* ...and after commands that fit */
 static int connects, disconnects;       /* uniapi_on_connect / uniapi_on_disconnect calls */
@@ -412,6 +417,54 @@ static void on_slot_freed(void* user) {
     ++slots_freed;
 }
 
+static int sink_bytes_ok(const unsigned char* data, size_t size, int seed) {
+    size_t i;
+    for (i = 0; i < size; ++i) {
+        if (data[i] != pattern_byte(seed, i)) return 0;
+    }
+    return 1;
+}
+
+/* The page published a sink slot: the pattern for its seed, size bytes. The first is held (the
+ * page then has one slot left and must wait for it), the others go back at once. */
+static void on_sink_data(void* user, const uniapi_sink_slot* slot, const char* meta) {
+    double seed = -1, size = -1;
+    (void)user;
+    ++sink_slots;
+    if (!uniapi_json_get_number(meta, "/seed", &seed) || !uniapi_json_get_number(meta, "/size", &size)
+        || (size_t)size != slot->size) {
+        sink_meta_ok = 0;
+    }
+    if (sink_bytes_ok(slot->data, slot->size, (int)seed)) ++sink_intact;
+    if (!sink_held_set) {
+        sink_held = *slot; /* kept: its data stays valid until released */
+        sink_held_set = 1;
+        return;
+    }
+    uniapi_sink_release(sink, slot);
+}
+
+static void on_sink_filled(void* user, int ok, const char* value, const uniapi_bytes* bytes) {
+    double sent = 0;
+    int shared = -1;
+    char detail[160];
+    (void)user;
+    (void)bytes;
+    snprintf(detail, sizeof detail, "page: %s; C got %d slots, %d intact", ok ? value : "failed", sink_slots, sink_intact);
+    check("the page fills a sink (app.sink), C gets every slot in uniapi_sink_on_data, every byte as written",
+          ok && uniapi_json_get_number(value, "/sent", &sent) && sent == 3 && sink_slots == 3 && sink_intact == 3, detail);
+    check("each slot's meta reaches C as JSON text, its size the slot's", sink_meta_ok, "");
+    check("a held slot's data stays as the page wrote it until uniapi_sink_release",
+          sink_held_set && sink_bytes_ok(sink_held.data, sink_held.size, 40), "");
+    uniapi_sink_release(sink, &sink_held);
+    uniapi_sink_release(sink, &sink_held); /* released already: nothing happens */
+    check("uniapi_sink_received counts them; uniapi_sink_shared matches the page's and uniapi_shared_memory",
+          uniapi_sink_received(sink) == 3 && uniapi_json_get_bool(value, "/shared", &shared)
+              && shared == uniapi_sink_shared(sink) && uniapi_sink_shared(sink) == uniapi_shared_memory(app),
+          value);
+    next();
+}
+
 /* Waits (up to 3 s) until both frames are delivered and a freed slot was reported. */
 static void wait_for_frame(void* user) {
     static int timer, ticks;
@@ -585,17 +638,21 @@ static void next(void) {
         uniapi_call(app, "domEdits", NULL, on_dom_edits, NULL);
         break;
     case 9:
+        begin_step("A sink: the page to C");
+        uniapi_call(app, "sinkFill", "[\"c-sink\", 3, 40, [200, 256, 17]]", on_sink_filled, NULL);
+        break;
+    case 10:
         begin_step("Files and window");
         uniapi_call(app, "diskText", NULL, on_disk_text, NULL);
         break;
-    case 10: {
+    case 11: {
         char args[64];
         uniapi_set_size(app, TEST_WIDTH, TEST_HEIGHT);
         snprintf(args, sizeof args, "[%d, %d]", TEST_WIDTH, TEST_HEIGHT);
         uniapi_call(app, "waitForSize", args, on_sized, NULL);
         break;
     }
-    case 11:
+    case 12:
         check("the title bar follows the system by default", uniapi_title_bar(app) == UNIAPI_TITLE_BAR_SYSTEM, "");
         check("uniapi_visible is 1 for the shown main window", uniapi_visible(app) == 1, "");
         check("uniapi_on_ui_thread is 1 in a handler (the app's own thread)", uniapi_on_ui_thread(app) == 1, "");
@@ -638,7 +695,7 @@ static void next(void) {
         check("uniapi_set_fullscreen(1): uniapi_fullscreen says 1", uniapi_fullscreen(app) == 1, "");
         uniapi_call(app, "waitForFullScreen", "[true]", on_full_screen, NULL);
         break;
-    case 12: {
+    case 13: {
         char args[64];
         uniapi_set_fullscreen(app, 0);
         check("uniapi_set_fullscreen(0): uniapi_fullscreen says 0", uniapi_fullscreen(app) == 0, "");
@@ -646,12 +703,12 @@ static void next(void) {
         uniapi_call(app, "waitForSize", args, on_left_full_screen, NULL);
         break;
     }
-    case 13:
+    case 14:
         begin_step("Reloading the page");
         disconnects = 0;
         uniapi_navigate(app, "/index.html?reloaded=1");
         break; /* on_disconnect, then on_connect continues */
-    case 14:
+    case 15:
         begin_step("The desktop");
         check("uniapi_open_url refuses text that isn't a URL with a scheme",
               uniapi_open_url("not a url") == 0 && strstr(uniapi_last_error(), "scheme") != NULL, uniapi_last_error());
@@ -666,7 +723,7 @@ static void next(void) {
         }
         uniapi_clipboard_text(app, on_clipboard_original, NULL);
         break; /* on_clipboard_original, on_clipboard_back continue */
-    case 15: {
+    case 16: {
         uniapi_window_options options;
         begin_step("A further window");
         uniapi_window_options_init(&options);
@@ -878,6 +935,8 @@ int main(void) {
     uniapi_on_disconnect(app, on_disconnect, NULL);
     uniapi_on_close_requested(app, on_main_close_requested, NULL);
     stream = uniapi_stream_create(app, "c-stream", 256, 2);
+    sink = uniapi_sink_create(app, "c-sink", 256, 2);
+    uniapi_sink_on_data(sink, on_sink_data, NULL);
     serve_from_disk();
     checks_before_run();
 

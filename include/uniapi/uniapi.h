@@ -67,6 +67,7 @@ typedef struct uniapi_window uniapi_window;  /* a window and its page: the main 
 typedef struct uniapi_reply uniapi_reply;    /* answers one call from JavaScript */
 typedef struct uniapi_bytes uniapi_bytes;    /* binary values from the page in one message */
 typedef struct uniapi_stream uniapi_stream;
+typedef struct uniapi_sink uniapi_sink;      /* slots the page fills, C receives */
 typedef struct uniapi_dom uniapi_dom;        /* writes one DOM command list */
 typedef struct uniapi_assets uniapi_assets;  /* files compiled in by uniapi_embed() */
 
@@ -333,6 +334,38 @@ void uniapi_stream_on_slot_freed(uniapi_stream* stream, uniapi_callback fn, void
 int uniapi_stream_shared(const uniapi_stream* stream);
 uint64_t uniapi_stream_delivered(const uniapi_stream* stream);
 
+/* --- Sinks: large data from the page ------------------------------------------------------------ */
+
+/* A slot the page published (uniapi_sink_on_data): what it wrote, size bytes. The data stays valid,
+ * and the page can't use the slot again, until uniapi_sink_release: keep a copy of this struct to
+ * release it later (from another thread too). sink: internal (which sink; a replaced one's slots
+ * are ignored). What the page wrote is untrusted: a size larger than the slot is refused, but the
+ * bytes are whatever the page put there. */
+typedef struct uniapi_sink_slot {
+    int index;
+    const unsigned char* data;
+    size_t size;
+    uint64_t sink;
+} uniapi_sink_slot;
+/* A slot the page published, on the UI thread, in the order the page published them; meta_json is
+ * the page's meta as JSON text, and slot the slot (both valid during the call only). */
+typedef void (*uniapi_sink_handler)(void* user, const uniapi_sink_slot* slot, const char* meta_json);
+
+/* Creates or replaces a sink: slots the page fills (app.sink(name): acquire, write, publish) and C
+ * receives (uniapi_sink_on_data). With shared memory C reads the very memory the page wrote, no
+ * copy; without it (macOS, shared_memory 0) the page uploads each slot as it publishes it. See
+ * App::sink in uniapi.hpp. The handle is valid until the sink is replaced or the app is freed;
+ * replacing drops the page's slots of the old one. Its names share nothing with streams'. NULL on
+ * bad arguments. */
+uniapi_sink* uniapi_sink_create(uniapi_app* app, const char* name, size_t slot_size, int slot_count);
+/* The handler for published slots. NULL: each slot goes back to the page at once. */
+void uniapi_sink_on_data(uniapi_sink* sink, uniapi_sink_handler handler, void* user);
+/* Hands a slot back to the page. Any thread, while the sink exists; a slot released already, or one
+ * of a sink since replaced: nothing happens. */
+void uniapi_sink_release(uniapi_sink* sink, const uniapi_sink_slot* slot);
+int uniapi_sink_shared(const uniapi_sink* sink);        /* 1: the page writes into shared memory */
+uint64_t uniapi_sink_received(const uniapi_sink* sink); /* slots the page has published so far */
+
 /* --- DOM command lists ------------------------------------------------------------------------- */
 
 #define UNIAPI_DOM_BODY 0u
@@ -402,6 +435,7 @@ void uniapi_window_on_disconnect(uniapi_window* window, uniapi_page_handler hand
 int uniapi_window_connected(const uniapi_window* window);
 int uniapi_window_shared_memory(const uniapi_window* window);
 uniapi_stream* uniapi_window_stream_create(uniapi_window* window, const char* name, size_t slot_size, int slot_count);
+uniapi_sink* uniapi_window_sink_create(uniapi_window* window, const char* name, size_t slot_size, int slot_count);
 /* Sends a stream to another window's page too (one set of slots; a slot comes back once every
  * page it went to handed it back). 0 on error: that window has a stream of this name already. */
 int uniapi_stream_add_window(uniapi_stream* stream, uniapi_window* window);
