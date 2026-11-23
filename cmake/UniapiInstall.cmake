@@ -5,7 +5,8 @@
 # uniapi_install(<target> [DESTINATION <dir>] [NAME <name>] [ICON <file.svg|file.png>]
 #                [COMMENT <text>] [CATEGORIES <name>...] [BUNDLE_ID <id>] [VERSION <v>]
 #                [COPYRIGHT <text>]
-#                [FILE_TYPES <ext>... [FILE_TYPE_NAME <text>] [FILE_TYPE_ID <uti>]])
+#                [FILE_TYPES <ext>... [FILE_TYPE_NAME <text>] [FILE_TYPE_ID <uti>]
+#                                     [FILE_TYPE_MIME <type>]])
 #
 # Installs an app built with uniapi so that it runs from where it is installed
 # (cmake --install <build> --prefix <prefix>):
@@ -36,13 +37,21 @@
 # (the Desktop Menu Specification's names: System TerminalEmulator; Utility by default).
 # COPYRIGHT is the copyright line Finder shows on macOS.
 #
-# FILE_TYPES (macOS) are file name extensions (without the dot; any case) the app opens: the
+# FILE_TYPES are file name extensions (without the dot; any case) the app opens. On macOS the
 # bundle declares them as one type (FILE_TYPE_ID, a uniform type identifier; default
 # <bundle id>.document; FILE_TYPE_NAME is what Finder calls it, default "<NAME> document") and
 # itself as a viewer of it. Finder then shows those files with a document icon of the app's
 # (the system draws it from the app icon: the app's picture on a page) instead of a blank page,
 # and a double-click opens them in the app: App::onOpenFiles gets them. Several apps may
 # declare the same identifier; use the one the format's authors or other apps use, if any.
+# On Linux they are declared as one MIME type (FILE_TYPE_MIME; default application/x-<the first
+# extension>; FILE_TYPE_NAME is what the file manager calls it), in
+# <prefix>/share/mime/packages/<app>.xml, and the desktop entry names the app as a program for
+# it (MimeType, and %F in Exec: the files are the program's arguments). The file manager then
+# offers the app for those files ("Open with"). The desktop's lists of types and of entries
+# are brought up to date (update-mime-database, update-desktop-database) when installing to
+# ~/.local, /usr/local or /usr without DESTDIR; a package's own hooks do it otherwise.
+# Windows: not declared (an installer's work).
 #
 # <dir> defaults to bin (. on macOS); use one folder level (like bin) so ../lib stays inside <prefix>. With
 # DESTINATION . the app is self-contained instead: on Linux the extension goes to
@@ -68,7 +77,7 @@ function(uniapi_install target)
     # Here too: the folder names (bin, share) are plain variables, set above for uniapi's own
     # folder only; a project that has uniapi as a subfolder calls this from its own.
     include(GNUInstallDirs)
-    cmake_parse_arguments(ARG "" "DESTINATION;NAME;ICON;BUNDLE_ID;VERSION;COMMENT;COPYRIGHT;FILE_TYPE_NAME;FILE_TYPE_ID"
+    cmake_parse_arguments(ARG "" "DESTINATION;NAME;ICON;BUNDLE_ID;VERSION;COMMENT;COPYRIGHT;FILE_TYPE_NAME;FILE_TYPE_ID;FILE_TYPE_MIME"
                           "CATEGORIES;FILE_TYPES" ${ARGN})
     # The Linux menu's categories as the entry's value: every name followed by ";".
     set(categories "")
@@ -106,15 +115,58 @@ function(uniapi_install target)
         install(FILES "$<TARGET_FILE:uniapi_webext>" DESTINATION "${extension_dir}")
         if(NOT ARG_DESTINATION STREQUAL ".")
             _uniapi_install_desktop_entry("${name}" "${ARG_DESTINATION}" "${ARG_NAME}" "${ARG_ICON}" "${ARG_COMMENT}"
-                                          "${categories}")
+                                          "${categories}" "${ARG_FILE_TYPES}" "${ARG_FILE_TYPE_NAME}"
+                                          "${ARG_FILE_TYPE_MIME}")
         endif()
     endif()
 endfunction()
 
 # The desktop entry and its icon (Linux).
-function(_uniapi_install_desktop_entry name destination display_name icon comment categories)
+function(_uniapi_install_desktop_entry name destination display_name icon comment categories
+                                       file_types file_type_name file_type_mime)
     if(NOT display_name)
         set(display_name "${name}")
+    endif()
+
+    # The file types (FILE_TYPES): one MIME type, matched by the files' extensions (any case:
+    # shared-mime-info's patterns ignore it), in a package of the app's own.
+    set(mime "")
+    if(file_types)
+        set(globs "")
+        set(first "")
+        foreach(ext IN LISTS file_types)
+            string(REGEX REPLACE "^\\." "" ext "${ext}")
+            if(NOT ext MATCHES "^[A-Za-z0-9_+-]+$")
+                message(FATAL_ERROR "uniapi_install(${name}): FILE_TYPES ${ext} is not a file name extension (like mlv)")
+            endif()
+            string(TOLOWER "${ext}" ext)
+            if(NOT first)
+                set(first "${ext}")
+            endif()
+            string(APPEND globs "    <glob pattern=\"*.${ext}\"/>\n")
+        endforeach()
+        set(mime "${file_type_mime}")
+        if(NOT mime)
+            set(mime "application/x-${first}")
+        endif()
+        if(NOT mime MATCHES "^[a-z0-9][a-z0-9.+-]*/[a-z0-9][a-z0-9.+-]*$")
+            message(FATAL_ERROR "uniapi_install(${name}): FILE_TYPE_MIME ${mime} is not a MIME type (like application/x-mlv)")
+        endif()
+        if(NOT file_type_name)
+            set(file_type_name "${display_name} document")
+        endif()
+        string(REPLACE "&" "&amp;" type_name_xml "${file_type_name}")
+        string(REPLACE "<" "&lt;" type_name_xml "${type_name_xml}")
+        string(REPLACE ">" "&gt;" type_name_xml "${type_name_xml}")
+        set(package "${CMAKE_CURRENT_BINARY_DIR}/uniapi-desktop/${name}.xml")
+        file(WRITE "${package}" "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<mime-info xmlns=\"http://www.freedesktop.org/standards/shared-mime-info\">
+  <mime-type type=\"${mime}\">
+    <comment>${type_name_xml}</comment>
+${globs}  </mime-type>
+</mime-info>
+")
+        install(FILES "${package}" DESTINATION "${CMAKE_INSTALL_DATADIR}/mime/packages")
     endif()
     if(NOT icon)
         set(icon "${UNIAPI_LOGO_SVG}")
@@ -136,6 +188,8 @@ function(_uniapi_install_desktop_entry name destination display_name icon commen
 set(UNIAPI_ENTRY_TITLE [[${display_name}]])
 set(UNIAPI_ENTRY_COMMENT [[${comment}]])
 set(UNIAPI_ENTRY_CATEGORIES [[${categories}]])
+set(UNIAPI_ENTRY_MIME [[${mime}]])
+set(UNIAPI_ENTRY_DATADIR [[${CMAKE_INSTALL_DATADIR}]])
 set(UNIAPI_ENTRY_EXE [[${destination}/${name}]])
 set(UNIAPI_ENTRY_FILE [[${CMAKE_CURRENT_BINARY_DIR}/uniapi-desktop/${name}.desktop]])
 set(UNIAPI_ENTRY_DESTINATION [[${CMAKE_INSTALL_DATADIR}/applications]])

@@ -315,7 +315,7 @@ but slower (about 3 s per megabyte) and uncompressed.
 
 *API guide: [CMake: `uniapi_install()`](https://bouncyball-git.github.io/uniapi/doc/api.html#ref-cmake)*
 
-`uniapi_install(<target> [DESTINATION <dir>] [NAME <name>] [ICON <file.svg|file.png>] [COMMENT <text>] [CATEGORIES <name>...] [BUNDLE_ID <id>] [VERSION <v>] [COPYRIGHT <text>] [FILE_TYPES <ext>... [FILE_TYPE_NAME <text>] [FILE_TYPE_ID <uti>]])`
+`uniapi_install(<target> [DESTINATION <dir>] [NAME <name>] [ICON <file.svg|file.png>] [COMMENT <text>] [CATEGORIES <name>...] [BUNDLE_ID <id>] [VERSION <v>] [COPYRIGHT <text>] [FILE_TYPES <ext>... [FILE_TYPE_NAME <text>] [FILE_TYPE_ID <uti>] [FILE_TYPE_MIME <type>]])`
 installs an app so it runs from wherever it is installed (`cmake --install build --prefix
 <prefix>`):
 
@@ -351,6 +351,16 @@ opens them in the app: `App::onOpenFiles` gets them (see
 [Links, dropped files, the clipboard, one instance](#links-dropped-files-the-clipboard-one-instance)).
 Several apps may declare the same identifier: use the one the format's authors or other apps
 use, if there is one.
+
+On Linux, `FILE_TYPES` are declared as one MIME type (`FILE_TYPE_MIME`, default
+`application/x-<the first extension>`; `FILE_TYPE_NAME` is what the file manager calls it) in
+`<prefix>/share/mime/packages/<app>.xml`, and the desktop entry names the app as a program for
+it (`MimeType`, and `%F` in `Exec`: the files are the program's arguments, see
+`uniapi::arguments()`). The file manager then offers the app for those files ("Open with").
+Installing to `~/.local`, `/usr/local` or `/usr` without `DESTDIR` also brings the desktop's
+lists up to date (`update-mime-database`, `update-desktop-database`, where they are installed);
+a package's own hooks do it otherwise. Not with `DESTINATION .` (no desktop entry), nor on
+Windows.
 
 The web engine's profile (cache, storage) goes to a per-user folder named after the
 executable, which is writable wherever the app is installed: `%LOCALAPPDATA%\<app>` on
