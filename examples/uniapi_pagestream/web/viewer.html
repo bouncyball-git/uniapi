@@ -1,0 +1,122 @@
+<!doctype html>
+<!--
+  Copyright (C) 2026 bouncyball
+  Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+  SPDX-License-Identifier: Apache-2.0
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>uniapi page stream: viewer</title>
+<style>
+    html, body { margin: 0; height: 100%; background: #111; color: #ccc; font: 13px system-ui, sans-serif; }
+    body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+    canvas { max-width: 95vw; max-height: 85vh; background: #000; }
+    #stats { font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div id="stats">Waiting for the producer's frames…</div>
+<script src="/uniapi/uniapi.js"></script>
+<script>
+    // The viewer (examples/uniapi_pagestream/main.cpp): the producer page's frames arrive as the
+    // "frames" stream, the very slots it filled (with shared memory, the same memory), drawn as
+    // uniapi_stream's demo page draws its frames.
+    const app = uniapi.connect({ page: 'viewer' });
+
+    // ?draw=2d (default)   2D canvas, GPU-backed: every putImageData is a texture upload
+    // ?draw=2d-cpu         2D canvas kept in CPU memory (willReadFrequently)
+    // ?draw=webgl          WebGL2 texture upload + full-screen triangle
+    const drawMode = new URLSearchParams(location.search).get('draw') || '2d';
+
+    function create2dDrawer(canvas, cpu) {
+        const ctx = canvas.getContext('2d', { willReadFrequently: cpu });
+        return (bytes, width, height) => {
+            // ImageData wraps the frame bytes without copying; putImageData copies them into the canvas.
+            const pixels = new Uint8ClampedArray(bytes.buffer, bytes.byteOffset, width * height * 4);
+            ctx.putImageData(new ImageData(pixels, width, height), 0, 0);
+        };
+    }
+
+    function createWebGLDrawer(canvas) {
+        const gl = canvas.getContext('webgl2', { alpha: false, antialias: false, depth: false });
+        if (!gl) throw new Error('WebGL2 unavailable');
+        const compile = (type, source) => {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader));
+            return shader;
+        };
+        const program = gl.createProgram();
+        // One triangle covering the viewport; uv.y is flipped because row 0 of the frame is the top.
+        gl.attachShader(program, compile(gl.VERTEX_SHADER, `#version 300 es
+            out vec2 uv;
+            void main() {
+                vec2 p = vec2(float((gl_VertexID & 1) << 2), float((gl_VertexID & 2) << 1));
+                uv = vec2(p.x * 0.5, 1.0 - p.y * 0.5);
+                gl_Position = vec4(p - 1.0, 0.0, 1.0);
+            }`));
+        gl.attachShader(program, compile(gl.FRAGMENT_SHADER, `#version 300 es
+            precision mediump float;
+            uniform sampler2D frame;
+            in vec2 uv;
+            out vec4 color;
+            void main() { color = texture(frame, uv); }`));
+        gl.linkProgram(program);
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
+        gl.useProgram(program);
+        let texture = null, textureWidth = 0, textureHeight = 0;
+        return (bytes, width, height) => {
+            if (width !== textureWidth || height !== textureHeight) {
+                gl.deleteTexture(texture);
+                texture = gl.createTexture();
+                gl.bindTexture(gl.TEXTURE_2D, texture);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, width, height);
+                gl.viewport(0, 0, width, height);
+                textureWidth = width;
+                textureHeight = height;
+            }
+            // Copies the frame into WebGL's upload buffer before returning: the slot goes back after.
+            gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, bytes);
+            gl.drawArrays(gl.TRIANGLES, 0, 3);
+        };
+    }
+
+    const canvas = document.getElementById('view');
+    const draw = drawMode === 'webgl' ? createWebGLDrawer(canvas) : create2dDrawer(canvas, drawMode === '2d-cpu');
+    const stats = document.getElementById('stats');
+    let framesThisSecond = 0, drawMsThisSecond = 0, lastReport = performance.now();
+
+    app.stream('frames', (bytes, meta) => {
+        const { width, height } = meta;
+        if (meta.draw) {
+            const drawStart = performance.now();
+            if (canvas.width !== width || canvas.height !== height) {
+                canvas.width = width;
+                canvas.height = height;
+            }
+            draw(bytes, width, height);
+            drawMsThisSecond += performance.now() - drawStart;
+        }
+        framesThisSecond++;
+        const now = performance.now();
+        if (now - lastReport >= 1000) {
+            const fps = (framesThisSecond * 1000) / (now - lastReport);
+            const drawMs = drawMsThisSecond / framesThisSecond;
+            stats.textContent = `${fps.toFixed(1)} fps · frame ${meta.frame} · ${meta.dropped} dropped · ` +
+                `${(bytes.byteLength / 1024).toFixed(0)} KiB per frame · ${drawMode} draw ${drawMs.toFixed(2)} ms`;
+            app.emit('draw-ms', drawMs);
+            framesThisSecond = 0;
+            drawMsThisSecond = 0;
+            lastReport = now;
+        }
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+<!doctype html>
+<!--
+  Copyright (C) 2026 bouncyball
+  Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+  SPDX-License-Identifier: Apache-2.0
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>uniapi page-to-page test</title>
+<style>
+    body { margin: 0; padding: 16px; font: 13px/1.5 system-ui, sans-serif; background: #16191e; color: #d4dae3; }
+    h1 { font-size: 16px; margin: 0 0 8px; }
+    #log { font-family: ui-monospace, Consolas, monospace; font-size: 12px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>uniapi page-to-page test: the writing page</h1>
+<p>This page fills a sink; a further window's page receives the same slots as a stream. The results
+appear here and on the console.</p>
+<div id="log"></div>
+<script src="/uniapi/uniapi.js"></script>
+<script>
+const app = uniapi.connect({ page: 'writer' });
+app.expose({
+    showResults: (lines) => { document.getElementById('log').textContent = lines.join('\n'); },
+});
+// C++ asks for a picture: a free slot of the sink (waiting for one while every slot is taken:
+// C++ or the reading page still has it), filled with a pattern, published with its sum.
+app.on('fill', async ({ seq, size, hold }) => {
+    const sink = app.sink('pictures');
+    const slot = await sink.acquire();
+    const bytes = new Uint8Array(slot.buffer, 0, size);
+    let sum = 0;
+    for (let i = 0; i < size; i++) {
+        const v = (i * 31 + seq * 7) % 251;
+        bytes[i] = v;
+        sum += v;
+    }
+    sink.publish(slot, size, { seq, sum, hold: hold ?? null });
+    app.emit('filled', { seq, sum });
+});
+</script>
+</body>
+</html>

@@ -39,6 +39,12 @@
 // a slot's bytes in its put message as binary data (uploaded as below), and C++ keeps that
 // upload as the slot's data until it releases the slot.
 //
+// Page to page (Sink::addWindow): a sink reaching other windows has a relay, a stream of its own
+// (its own id, the sink's name) whose slots borrow the sink's: its regions (shared read-only with
+// those pages) or, without them, its uploads (which those pages fetch). A put goes to those
+// pages as that stream's frame of the same slot; the sink's slot goes back to its page once C++
+// released it and the relay's slot is free again (every page it went to released it).
+//
 // A region that never arrives must not hang the page (shared memory is used only if every
 // check passes, otherwise silently not). The page waits regionTimeout (3 s by default): at
 // connect it then sends ready {sharedMemory: false} and fetches every stream; for a stream
@@ -73,6 +79,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -404,13 +411,15 @@ struct Stream::Impl {
     enum class State { Free, Writing, WithPage };
     struct SlotData {
         std::unique_ptr<detail::SharedRegion> region;  // shared memory mode
-        std::shared_ptr<std::vector<uint8_t>> heap;    // fetch mode; requests keep it alive
+        detail::SharedRegion* borrowed = nullptr;      // a relay's: its sink's region
+        std::shared_ptr<std::vector<uint8_t>> heap;    // fetch mode (a relay's: the sink's upload); requests keep it alive
         uint8_t* data = nullptr;
         State state = State::Free;
         size_t size = 0;
         // A page went away holding it: its fetch may still be reading the buffer on another
         // thread, so the slot gets a fresh one when it is free again (fetch mode).
         bool renew = false;
+        detail::SharedRegion* Region() const { return region ? region.get() : borrowed; }
     };
     // A window whose page receives it.
     struct Target {
@@ -429,9 +438,11 @@ struct Stream::Impl {
     bool shared = false;       // the slots are shared regions
     bool allocated = false;
     std::vector<SlotData> slots;
-    std::vector<Target> targets;  // the windows it reaches; the one it belongs to first
+    std::vector<Target> targets;  // the windows it reaches; the one it belongs to first (not a relay's)
     uint64_t delivered = 0;
     bool waiting = false;
+    // A sink's relay (Sink::addWindow): its slots are the sink's; C++ never fills them.
+    Sink::Impl* relaying = nullptr;
 
     ~Impl();  // leaves the other windows it reached (after Window::Impl)
     void Allocate(detail::Backend& backend, bool useShared);
@@ -454,6 +465,12 @@ struct Stream::Impl {
         }
         if (slot.state != State::WithPage) return false;
         slot.state = State::Free;
+        if (relaying) {  // the sink's slot: no page holds it here any more (the sink's upload let go)
+            slot.heap.reset();
+            slot.renew = false;
+            Relayed(index);
+            return true;
+        }
         if (slot.renew && slot.heap) {
             slot.heap = std::make_shared<std::vector<uint8_t>>(slotSize);
             slot.data = slot.heap->data();
@@ -477,14 +494,21 @@ struct Stream::Impl {
     void ResetForNewPage(Window::Impl* w);  // after Window::Impl
     void Release(Window::Impl* w, int index);
     void RemoveTarget(Window::Impl* w);
+    // A relay's: the sink's slot to the pages it reaches as a frame. True if a page got it.
+    bool Relay(int index, uint8_t* bytes, std::shared_ptr<std::vector<uint8_t>> upload, size_t size, const json& meta);
+    void Relayed(int index);  // a relay's slot is free again: the sink may give it back (after Sink::Impl)
 };
 
 struct Sink::Impl {
-    enum class State { Page, App };  // the page may fill it; C++ has it (published, not released)
+    enum class State { Page, App };  // the page may fill it; C++ has it (published, not given back)
     struct SlotData {
         std::unique_ptr<detail::SharedRegion> region;  // shared memory mode
         std::shared_ptr<std::vector<uint8_t>> upload;  // what the page uploaded (no shared memory)
         State state = State::Page;
+        // Who has a published slot (State::App): C++ (onData, until release) and other windows'
+        // pages (the relay's frame, until each hands it back). Back to the page when neither.
+        bool app = false;
+        bool readers = false;
     };
 
     Window::Impl* window = nullptr;  // the window it belongs to (its sinks hold it)
@@ -498,9 +522,30 @@ struct Sink::Impl {
     bool pageUploads = true;   // the current page didn't get the regions (or has none): it uploads
     std::vector<SlotData> slots;
     uint64_t received = 0;
+    // The other windows' pages it reaches (addWindow): a stream whose slots are this sink's.
+    std::unique_ptr<Stream::Impl> relay;
 
     void Allocate(detail::Backend& backend, bool useShared);
     bool SharedWithPage() const { return allocated && shared && !pageUploads; }
+    void MakeRelay();  // (after Window::Impl)
+    // The relay's slots to this sink's memory, as it is now (none until it is allocated).
+    void LinkRelay() {
+        Stream::Impl& r = *relay;
+        r.allocated = allocated;
+        r.shared = allocated && shared;
+        r.slots.clear();
+        r.slots.resize(allocated ? size_t(slotCount) : 0);
+        for (size_t i = 0; i < r.slots.size(); ++i) {
+            r.slots[i].borrowed = r.shared ? slots[i].region.get() : nullptr;
+            r.slots[i].data = r.slots[i].borrowed ? r.slots[i].borrowed->data : nullptr;
+        }
+    }
+    void GiveBack(int index);  // to the page, once neither C++ nor another page has it
+    void ReadersDone(int index) {
+        if (index < 0 || index >= int(slots.size())) return;
+        slots[size_t(index)].readers = false;
+        GiveBack(index);
+    }
     json Info() const {
         json free = json::array();
         for (int i = 0; i < int(slots.size()); ++i) {
@@ -510,8 +555,12 @@ struct Sink::Impl {
                 {"shared", SharedWithPage()}, {"free", free}};
     }
     void Put(const json& message);   // after Window::Impl
-    void ReleaseSlot(int index);     // C++ is done with it: back to the page
+    void ReleaseSlot(int index);     // C++ is done with it: back to the page (once other pages are)
 };
+
+void Stream::Impl::Relayed(int index) {
+    if (relaying) relaying->ReadersDone(index);
+}
 
 namespace {
 
@@ -988,6 +1037,31 @@ void Stream::Impl::RemoveTarget(Window::Impl* w) {
     }
 }
 
+// A relay's: the sink's slot `index`, just put, to every connected page it reaches, as a frame;
+// `bytes` its memory (the region, or the upload, which then stays with the slot for fetches).
+bool Stream::Impl::Relay(int index, uint8_t* bytes, std::shared_ptr<std::vector<uint8_t>> upload, size_t size,
+                         const json& meta) {
+    if (!allocated || index < 0 || size_t(index) >= slots.size()) return false;
+    SlotData& slot = slots[size_t(index)];
+    if (slot.state != State::Free) return false;
+    const json message = {{"t", "frame"}, {"stream", name}, {"id", id}, {"slot", index},
+                          {"size", size}, {"meta", meta}};
+    const uint64_t bit = uint64_t(1) << index;
+    bool sent = false;
+    for (Target& t : targets) {
+        if (!t.active || t.window->pageState != Window::Impl::PageState::Connected) continue;
+        t.held |= bit;
+        t.window->Send(message);
+        sent = true;
+    }
+    if (!sent) return false;
+    slot.state = State::WithPage;
+    slot.size = size;
+    slot.data = bytes;
+    slot.heap = std::move(upload);
+    return true;
+}
+
 Stream::Stream(std::unique_ptr<Impl> impl) : impl_(std::move(impl)) {
     impl_->owner = this;
 }
@@ -1238,27 +1312,124 @@ void Sink::Impl::Put(const json& message) {
     }
     slot.state = State::App;
     ++received;
+    const json meta = message.value("meta", json());
+    // Other windows' pages (addWindow): the same slot, as the relay's frame. Pages that map the
+    // regions read them: bytes this page uploaded instead (its regions never arrived) go there
+    // first, the one copy; without regions they fetch the upload itself.
+    if (relay) {
+        uint8_t* bytes = nullptr;
+        std::shared_ptr<std::vector<uint8_t>> upload;
+        if (relay->shared && slot.region) {
+            bytes = slot.region->data;
+            if (data && data != bytes && size) std::memcpy(bytes, data, size_t(size));
+        } else if (slot.upload) {
+            bytes = slot.upload->data();
+            upload = slot.upload;
+        }
+        slot.readers = relay->Relay(index, bytes, std::move(upload), size_t(size), meta);
+    }
     auto onData = owner ? owner->onData : nullptr;  // a copy: it may replace this very sink
+    slot.app = static_cast<bool>(onData);
     if (!onData) {
-        ReleaseSlot(index);
+        GiveBack(index);
         return;
     }
     const Sink::Slot given{index, data, size_t(size), id};
-    const json meta = message.value("meta", json());
     RunGuarded("Sink::onData", [&] { onData(given, meta); });
 }
 
-// Back to the page: told at once if it is connected; a page that connects later learns it from
-// the sink's free list.
-void Sink::Impl::ReleaseSlot(int index) {
+// Back to the page, once neither C++ nor another window's page has it: told at once if it is
+// connected; a page that connects later learns it from the sink's free list.
+void Sink::Impl::GiveBack(int index) {
     if (index < 0 || index >= int(slots.size())) return;
     SlotData& slot = slots[size_t(index)];
-    if (slot.state != State::App) return;
+    if (slot.state != State::App || slot.app || slot.readers) return;
     slot.state = State::Page;
     slot.upload.reset();
     if (window->pageState != Window::Impl::PageState::None) {
         window->Send({{"t", "free"}, {"sink", name}, {"id", id}, {"slot", index}});
     }
+}
+
+// C++ is done with it (release): back to the page unless another window's page still has it.
+void Sink::Impl::ReleaseSlot(int index) {
+    if (index < 0 || index >= int(slots.size())) return;
+    SlotData& slot = slots[size_t(index)];
+    if (slot.state != State::App || !slot.app) return;
+    slot.app = false;
+    GiveBack(index);
+}
+
+void Sink::Impl::MakeRelay() {
+    relay = std::make_unique<Stream::Impl>();
+    relay->window = window;
+    relay->relaying = this;
+    relay->name = name;
+    relay->id = window->app->nextStreamId++;
+    relay->slotSize = slotSize;
+    relay->slotCount = slotCount;
+    LinkRelay();
+}
+
+void Sink::addWindow(Window& other) {
+    Impl& s = *impl_;
+    if (s.window) UiOnly(*s.window, "Sink::addWindow");
+    Window::Impl* w = other.internal();
+    if (w->app != s.window->app) throw std::invalid_argument("that window belongs to another App");
+    if (w == s.window) throw std::invalid_argument("a sink's own page fills it: add another window");
+    if (s.relay) {
+        if (Stream::Impl::Target* t = s.relay->TargetOf(w)) {
+            t->active = true;  // (again, if removed before its page handed everything back)
+            return;
+        }
+    }
+    for (Stream::Impl* stream : w->PageStreams()) {
+        if (stream->name == s.name) {
+            throw std::invalid_argument("that window has a stream named \"" + s.name + "\" already");
+        }
+    }
+    if (!s.relay) s.MakeRelay();
+    Stream::Impl& r = *s.relay;
+    r.targets.push_back({w});
+    r.targets.back().pageFetches = !w->useShared;
+    w->received.push_back(&r);
+    if (w->pageState != Window::Impl::PageState::None) w->Announce(r);
+}
+
+void Sink::removeWindow(Window& other) {
+    Impl& s = *impl_;
+    if (s.window && s.window->app && !OnUiThread(*s.window->app)) {
+        // Posted: this sink by its id (it may have been replaced by then), both windows weakly.
+        std::weak_ptr<Window::Impl> weakOwn = s.window->shared_from_this();
+        std::weak_ptr<Window::Impl> weakOther = other.internal()->shared_from_this();
+        PostToUi(*s.window->app, [weakOwn, weakOther, id = s.id] {
+            const auto own = weakOwn.lock();
+            const auto w = weakOther.lock();
+            if (!own || !w || !w->owner) return;
+            for (auto& sink : own->sinks) {
+                if (sink->internal()->id == id) sink->removeWindow(*w->owner);
+            }
+        });
+        return;
+    }
+    if (!s.relay) return;
+    Stream::Impl::Target* t = s.relay->TargetOf(other.internal());
+    if (!t || !t->active) return;
+    if (t->held == 0) {
+        s.relay->RemoveTarget(t->window);
+    } else {
+        t->active = false;  // out once its page has handed its slots back (or went away)
+    }
+}
+
+std::vector<Window*> Sink::windows() const {
+    if (impl_->window) UiOnly(*impl_->window, "Sink::windows");
+    std::vector<Window*> result;
+    if (!impl_->relay) return result;
+    for (const Stream::Impl::Target& t : impl_->relay->targets) {
+        if (t.active && t.window->owner) result.push_back(t.window->owner);
+    }
+    return result;
 }
 
 void Sink::release(const Slot& slot) {
@@ -1427,12 +1598,15 @@ Sink& Window::sink(const std::string& name, size_t slotSize, int slotCount) {
     Sink* result = created.get();
     auto existing = std::find_if(impl.sinks.begin(), impl.sinks.end(),
                                  [&](const auto& s) { return s->name() == name; });
+    std::vector<Window*> reached;  // the other windows the replaced one reached: this one does too
     if (existing != impl.sinks.end()) {
-        *existing = std::move(created);
+        reached = (*existing)->windows();
+        *existing = std::move(created);  // its relay leaves those windows
     } else {
         impl.sinks.push_back(std::move(created));
     }
     if (impl.pageState != Impl::PageState::None) impl.AnnounceSink(*result->internal());
+    for (Window* w : reached) result->addWindow(*w);
     return *result;
 }
 
@@ -1898,6 +2072,13 @@ void Window::Impl::OnReady(bool sharedMemorySupported) {
     for (auto& sink : sinks) {
         Sink::Impl& s = *sink->internal();
         RunGuarded("allocating a sink's memory", [&] { s.Allocate(*app->backend, useShared); });
+        if (!s.relay) continue;
+        // Other windows' pages that connected before this web view existed: its relay again, now
+        // with the sink's memory.
+        s.LinkRelay();
+        for (Stream::Impl::Target& t : s.relay->targets) {
+            if (t.active && t.window->pageState != PageState::None) t.window->Announce(*s.relay);
+        }
     }
     if (pendingNavigation && window) {
         window->Navigate(*pendingNavigation);
@@ -2015,7 +2196,8 @@ void Window::Impl::ShareStream(Stream::Impl& stream) {
     const Stream::Impl::Target* t = stream.TargetOf(this);
     if (!t || !stream.SharedWith(*t) || !window) return;
     for (int i = 0; i < stream.slotCount; ++i) {
-        window->ShareRegion(*stream.slots[i].region,
+        // (a relay's regions are its sink's: shared read-only here, writable with the sink's page)
+        window->ShareRegion(*stream.slots[size_t(i)].Region(),
                             Dump({{"stream", stream.name}, {"id", stream.id}, {"slot", i}}), false);
     }
 }

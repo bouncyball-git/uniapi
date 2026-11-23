@@ -991,6 +991,17 @@ void uniapi_stream_remove_window(uniapi_stream* stream, uniapi_window* window) {
     GuardVoid([&] { StreamOf(stream)->removeWindow(WindowOf(window)); });
 }
 
+int uniapi_sink_add_window(uniapi_sink* sink, uniapi_window* window) {
+    return Guard(0, [&] {
+        SinkOf(sink)->addWindow(WindowOf(window));
+        return 1;
+    });
+}
+
+void uniapi_sink_remove_window(uniapi_sink* sink, uniapi_window* window) {
+    GuardVoid([&] { SinkOf(sink)->removeWindow(WindowOf(window)); });
+}
+
 int uniapi_window_send_dom(uniapi_window* window, uniapi_dom_writer write, void* user) {
     return Guard(0, [&] { return SendDom(WindowOf(window), write, user); });
 }

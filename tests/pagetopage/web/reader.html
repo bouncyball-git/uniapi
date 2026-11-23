@@ -1,0 +1,45 @@
+<!doctype html>
+<!--
+  Copyright (C) 2026 bouncyball
+  Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+  SPDX-License-Identifier: Apache-2.0
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>uniapi page-to-page test: the reading page</title>
+<style>
+    body { margin: 0; padding: 16px; font: 13px/1.5 system-ui, sans-serif; background: #1c2026; color: #d4dae3; }
+</style>
+</head>
+<body>
+<p>The reading page: the main window's sink, as a stream.</p>
+<script src="/uniapi/uniapi.js"></script>
+<script>
+const app = uniapi.connect({ page: location.search.slice(1) || 'reader' });
+// A picture marked hold "reader" (or "both") is kept until C++ says letGo, to show the writing
+// page can't have its slot again before this page hands it back. While kept, C++ can ask for its
+// sum again (resum): with shared memory a byte C++ changed in the slot shows here, the same memory.
+let letGo = null;
+let kept = null;
+const sumOf = (bytes) => {
+    let sum = 0;
+    for (let i = 0; i < bytes.length; i++) sum += bytes[i];
+    return sum;
+};
+app.on('letGo', () => {
+    kept = null;
+    if (letGo) letGo();
+    letGo = null;
+});
+app.on('resum', () => app.emit('resummed', { sum: kept ? sumOf(kept) : null }));
+app.stream('pictures', (bytes, meta) => {
+    app.emit('seen', { seq: meta?.seq ?? null, sum: sumOf(bytes), size: bytes.length });
+    if (meta?.hold === 'reader' || meta?.hold === 'both') {
+        kept = bytes;
+        return new Promise((resolve) => { letGo = resolve; });
+    }
+});
+</script>
+</body>
+</html>

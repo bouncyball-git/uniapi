@@ -150,6 +150,8 @@ This builds the `uniapi` static library and, in `build/` (names without `.exe` o
   calls a JavaScript function. Start reading here.
 - `hello_c.exe`: the same app in C (`examples/hello_c`), through the C API.
 - `uniapi_stream.exe`: the demo (`examples/uniapi_stream`), a frame streaming benchmark.
+- `uniapi_pagestream.exe`: the same benchmark page to page (`examples/uniapi_pagestream`): one
+  window's page makes the frames, another window's page shows them (`Sink::addWindow`).
 - `uniapi_logo.exe`: the uniapi logo (`examples/uniapi_logo`): the light, dark, gray and embossed
   versions at 16 to 128 px (the PNGs made for each size, at real screen pixels), larger as SVG
   and with the name, on a background that changes colour every three seconds; pause it (Space),
@@ -168,11 +170,12 @@ loader linked statically).
 
 | CMake option | Default | Effect |
 |---|---|---|
-| `UNIAPI_BUILD_EXAMPLES` | `ON` | Build the examples: `hello`, `hello_c`, `uniapi_stream`, `uniapi_logo`, `uniapi_notify` and `uniapi_tray`. |
+| `UNIAPI_BUILD_EXAMPLES` | `ON` | Build the examples: `hello`, `hello_c`, `uniapi_stream`, `uniapi_pagestream`, `uniapi_logo`, `uniapi_notify` and `uniapi_tray`. |
 | `UNIAPI_BUILD_TESTS` | `ON` | Build the tests (registered with CTest), the two checker apps and the latency probe. |
 | `CMAKE_OSX_DEPLOYMENT_TARGET` | `14.0` | macOS only: the oldest macOS the programs run on (14 or later). |
 | `UNIAPI_GTK` | `auto` | Linux only: `auto` uses GTK 4 + `webkitgtk-6.0` if installed, GTK 3 + `webkit2gtk-4.1` otherwise; `4` or `3` insists on one. CMake prints which it took. |
 | `UNIAPI_STREAM_EMBED_WEB` | `ON` | Compile uniapi_stream's `web/` folder into the program. `OFF` reads it from the source folder instead, so you can edit HTML/JS and press F5 without rebuilding. |
+| `UNIAPI_PAGESTREAM_EMBED_WEB` | `ON` | The same for uniapi_pagestream. |
 | `UNIAPI_EMBED_MINIFY` | `ON` | `uniapi_embed()` minifies `.js` and `.css` files with esbuild, and `.html`, `.svg` and `.json` with tdewolff/minify (both fetched, pinned) before embedding them; `UNIAPI_ESBUILD` and `UNIAPI_MINIFY` name other copies. |
 | `UNIAPI_EMBED_COMPRESS` | `OFF` | `uniapi_embed()` stores files that shrink by a tenth or more zlib-compressed, for a smaller program file; they are inflated each time they are served. `COMPRESS` does it for one call. |
 | `UNIAPI_EMBED_INCBIN` | `ON` with GCC/Clang on Linux (if a test program using it works), else `OFF` | `uniapi_embed()` brings the bytes in with the assembler's `.incbin` instead of compiling C++ arrays: no compile time for the data. |
@@ -601,6 +604,12 @@ mixer.navigate("/mixer.html");
   page reads the same memory); the slot comes back once every page it went to has handed it
   back, so the slowest page sets the pace. `removeWindow` stops it; replacing the stream keeps
   its windows.
+- Page to page: `pictures.addWindow(viewer)` on a sink sends what its page publishes to that
+  window's page too, as a stream of the same name (`app.stream('pictures', ...)` there): the very
+  slots the page filled, no copy (with shared memory, the same memory, mapped read-only there).
+  For a picture computed once in one window (on the GPU, say) and shown in another, instead of
+  computing it twice. A slot goes back to the filling page once C++ has released it (`onData`;
+  without one, at once) and every page it went to has handed it back.
 - Opened before `run()`, it opens with the main window. The App owns it: it lives until it has
   closed (after `onClosed` returns), or the App ends; `app.windows()` lists the open ones.
 - `app.sender()`: inside an exposed function or event handler, the window whose page sent it
@@ -892,7 +901,9 @@ More windows from C: `uniapi_open_window(app, &options)` (with `uniapi_window_op
 gives a `uniapi_window*`; `uniapi_window_navigate`, `_expose`, `_on`, `_emit`, `_call`,
 `_on_connect`, `_on_disconnect`, `_on_closed`, `_close`, `_stream_create`, `_sink_create`, `_send_dom`,
 `_set_title`, `_set_size`, ... act on it, and `uniapi_main_window(app)` is the main window as
-one. `uniapi_stream_add_window(stream, window)` / `_remove_window` send a stream to more windows.
+one. `uniapi_stream_add_window(stream, window)` / `_remove_window` send a stream to more windows,
+and `uniapi_sink_add_window(sink, window)` / `_remove_window` a sink's slots to more pages (page to
+page).
 
 ### JavaScript (`js/uniapi.js`, served at `/uniapi/uniapi.js`)
 
@@ -962,6 +973,12 @@ stream if this happens while connecting, otherwise just the stream concerned.
 A stream can reach more windows' pages than its own (`stream.addWindow(window)`; see
 [More windows](#more-windows)): one set of slots, each page told of every frame, each slot free
 again once all of them released it.
+
+A sink (the page to C++: `app.sink(name)` in the page, `Window::sink` in C++) can do the same the
+other way: `sink.addWindow(window)` sends what its page publishes on to that window's page, as
+a stream of the sink's name. Page to page with no copy: C++ only passes the slots on, and with
+shared memory every page reads the memory the first one wrote. Without it the filling page
+uploads each slot and the others fetch it (two transfers: see Performance).
 
 The handler's `bytes` are valid only until it returns; copy what you keep (`bytes.slice()`).
 
@@ -1055,6 +1072,22 @@ The window title shows fps, time per frame, throughput, the C++ render time, the
 time and the transfer mode. What the pages call is listed at the top of
 `examples/uniapi_stream/main.cpp`.
 
+`build\uniapi_pagestream.exe` is the same benchmark page to page: the main window's page makes
+the frames (the same pattern, in JavaScript) into a sink, and a second window's page draws them
+as they arrive, the very slots (`Sink::addWindow`). It takes the options above but `--stats`
+(no controls page, no settings file), and `--seconds=N` runs that long, prints the result and
+quits. Windows 11, WebView2, an RTX 4070 Ti SUPER, `--benchmark`, 1080p, the stream demo's
+numbers beside it:
+
+| | C++ to the page (`uniapi_stream`) | Page to page (`uniapi_pagestream`) |
+|---|---|---|
+| Shared memory | 250 fps, 4.00 ms a frame | 246 fps, 4.06 ms a frame |
+| Fetch | 16 fps | 5.4 fps (uploaded, then fetched) |
+
+With shared memory passing a frame on costs nothing measurable (`--benchmark=transport`:
+12,500 frames a second); the pages' own work sets the pace (2.8 ms to make a 1080p frame in
+JavaScript, 1.7 ms to draw it).
+
 ## Performance
 
 Measured with the demo on an NVIDIA RTX 4070 Ti SUPER, `--draw=2d`. Windows 11 with WebView2
@@ -1127,6 +1160,7 @@ cmake/                   uniapi_embed(), uniapi_install(), uniapi_icon() (icon a
 tools/embed/             uniapi_embed_tool: writes the embedded files' C++ at build time
 examples/hello/          smallest example (C++); its page is shared with examples/hello_c/ (C)
 examples/uniapi_stream/  demo app and its pages
+examples/uniapi_pagestream/  the same benchmark page to page (Sink::addWindow)
 examples/uniapi_logo/    the logo's versions and sizes on changing backgrounds
 examples/uniapi_notify/  a notification from C++ (the app's name and icon as the desktop shows them)
 examples/uniapi_tray/    an icon in the tray with a menu; closing the window hides it
@@ -1134,6 +1168,7 @@ doc/logo/                the logo: make.py (its source), SVGs (uniapi-name*.svg:
 tests/selftest/          API test (uniapi_test), C++20 (run with ctest)
 tests/c_api/             C API test, in C (run with ctest)
 tests/windows/           windows test: further windows (run with ctest)
+tests/pagetopage/        page-to-page test: a sink reaching another window's page (run with ctest)
 tests/lifecycle/         lifecycle test: hiding, showing, closing, the developer tools (run with ctest)
 tests/desktop/           desktop test: clipboard, links, drops, one instance, the .exe's details (run with ctest)
 tests/icon/              icon test: what uniapi_icon() writes into a Windows program (cmake -P, run with ctest)

@@ -440,6 +440,13 @@ uniapi_sink* uniapi_window_sink_create(uniapi_window* window, const char* name, 
  * page it went to handed it back). 0 on error: that window has a stream of this name already. */
 int uniapi_stream_add_window(uniapi_stream* stream, uniapi_window* window);
 void uniapi_stream_remove_window(uniapi_stream* stream, uniapi_window* window);
+/* Page to page: what a sink's page publishes reaches another window's page too, as a stream of the
+ * same name, the very slots (no copy; with shared memory that page maps them read-only); a slot goes
+ * back to the sink's page once C released it and every page it went to handed it back. See
+ * Sink::addWindow in uniapi.hpp. 0 on error: the sink's own window, or that window has a stream of
+ * this name already. */
+int uniapi_sink_add_window(uniapi_sink* sink, uniapi_window* window);
+void uniapi_sink_remove_window(uniapi_sink* sink, uniapi_window* window);
 int uniapi_window_send_dom(uniapi_window* window, uniapi_dom_writer write, void* user);
 void uniapi_window_set_title(uniapi_window* window, const char* title);
 void uniapi_window_set_size(uniapi_window* window, int width, int height);

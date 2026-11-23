@@ -379,6 +379,11 @@ private:
 // page whose regions didn't arrive) the page uploads a slot's bytes as it publishes it: the same
 // onData, one copy.
 //
+// Page to page: addWindow() sends what the page publishes to other windows' pages too, as a
+// stream of the same name (app.stream(name, handler) there): the very slots it filled, no copy
+// (with shared memory each reading page maps the same memory, read-only). For a picture computed
+// once in one window and shown in another.
+//
 // What the page wrote is untrusted: a published size larger than the slot is refused, but the
 // bytes are whatever the page put there, and with shared memory a misbehaving page could still
 // change them while C++ reads (never outside the slot).
@@ -399,6 +404,21 @@ public:
     // Hands a slot back to the page. Any thread; the Sink must still exist. A slot released
     // already, or one of a sink since replaced: nothing happens.
     void release(const Slot& slot);
+
+    // --- Page to page ---
+    // Sends what the page publishes to another window's page too, as a stream of the same name:
+    // the slots it filled, not copies (with shared memory, the same memory, which that page maps
+    // read-only). A slot goes back to the page that fills it once C++ has released it (onData;
+    // without one, at once) and every page it went to has handed it back, so the slowest sets
+    // the pace; a page that isn't connected doesn't hold anything up. Throws
+    // std::invalid_argument for the sink's own window, a window that receives a stream of this
+    // name already, or another App's. Replacing the sink (sink() with its name again) keeps the
+    // windows it reaches.
+    void addWindow(Window& window);
+    // That window's page gets no more of its slots (the ones it has, it hands back as usual).
+    // Any thread, as release().
+    void removeWindow(Window& window);
+    std::vector<Window*> windows() const;  // the other windows it reaches
 
     const std::string& name() const;
     size_t slotSize() const;

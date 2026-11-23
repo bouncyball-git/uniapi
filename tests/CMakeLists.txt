@@ -57,6 +57,18 @@ uniapi_embed(uniapi_windows_test windows_web "${CMAKE_CURRENT_SOURCE_DIR}/window
 add_test(NAME windows.shared-memory COMMAND uniapi_windows_test --exit)
 add_test(NAME windows.fetch COMMAND uniapi_windows_test --no-shared-memory --exit)
 
+# The page-to-page test: Sink::addWindow against real web views. The main window's page fills a
+# sink, a further window's page receives the same slots as a stream: intact in that page and C++,
+# a slot back only once C++ and the reading page are done (both held in turn), a reading page that
+# reloads or a window that closes letting go, removeWindow, a replaced sink keeping its windows.
+add_executable(uniapi_pagetopage_test pagetopage/main.cpp)
+set_target_properties(uniapi_pagetopage_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+target_link_libraries(uniapi_pagetopage_test PRIVATE uniapi)
+target_compile_features(uniapi_pagetopage_test PRIVATE cxx_std_20)  # its flow is a coroutine
+uniapi_embed(uniapi_pagetopage_test pagetopage_web "${CMAKE_CURRENT_SOURCE_DIR}/pagetopage/web")
+add_test(NAME pagetopage.shared-memory COMMAND uniapi_pagetopage_test --exit)
+add_test(NAME pagetopage.fetch COMMAND uniapi_pagetopage_test --no-shared-memory --exit)
+
 # The lifecycle test: windows hidden and shown again (startHidden, hide, show, visible) and
 # closing the app decides (onCloseRequested): the user closing a window, by the platform's own
 # close (WM_CLOSE, gtk_window_close, performClose:), and on macOS Quit (Cmd+Q); and openDevTools

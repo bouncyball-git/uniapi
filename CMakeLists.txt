@@ -34,7 +34,7 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR AND (CMAKE_SYSTEM_NAME STREQUAL 
     endforeach()
 endif()
 
-option(UNIAPI_BUILD_EXAMPLES "Build the examples in examples/ (hello, hello_c, uniapi_stream, uniapi_logo, uniapi_notify, uniapi_tray)" ON)
+option(UNIAPI_BUILD_EXAMPLES "Build the examples in examples/ (hello, hello_c, uniapi_stream, uniapi_pagestream, uniapi_logo, uniapi_notify, uniapi_tray)" ON)
 option(UNIAPI_BUILD_TESTS "Build the tests in tests/ (self-test, C API test) and register them with CTest" ON)
 
 if(POLICY CMP0135)
@@ -369,6 +369,7 @@ if(UNIAPI_BUILD_EXAMPLES)
     add_subdirectory(examples/hello)
     add_subdirectory(examples/hello_c)
     add_subdirectory(examples/uniapi_stream)
+    add_subdirectory(examples/uniapi_pagestream)
     add_subdirectory(examples/uniapi_logo)
     add_subdirectory(examples/uniapi_notify)
     add_subdirectory(examples/uniapi_tray)

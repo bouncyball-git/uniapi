@@ -1,0 +1,97 @@
+<!doctype html>
+<!--
+  Copyright (C) 2026 bouncyball
+  Licensed under the Apache License, Version 2.0; see the LICENSE file at the project's root.
+  SPDX-License-Identifier: Apache-2.0
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>uniapi page stream: producer</title>
+<style>
+    html, body { margin: 0; height: 100%; background: #111; color: #ccc; font: 13px system-ui, sans-serif; }
+    body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+    #status { font-variant-numeric: tabular-nums; }
+    .note { color: #8a919b; font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="status">Starting…</div>
+<div class="note">This page makes the frames; the viewer window shows them (the same slots: page to page).</div>
+<script src="/uniapi/uniapi.js"></script>
+<script>
+    // The producer (examples/uniapi_pagestream/main.cpp): fills the "frames" sink with an animated
+    // gradient (uniapi_stream's RenderTestPattern, here in the page) and publishes each frame; C++
+    // sends them on to the viewer window's page (Sink::addWindow), no copy.
+    //   ?mode=timed       a frame every 16 ms; a tick while the last frame still waits for a slot
+    //                     is dropped
+    //   ?mode=benchmark   a new frame as soon as a slot is free
+    //   ?mode=transport   as benchmark, without filling the pixels: the hand-off alone
+    const app = uniapi.connect({ page: 'producer' });
+    const params = new URLSearchParams(location.search);
+    const mode = params.get('mode') || 'timed';
+    const width = Number(params.get('width')) || 640;
+    const height = Number(params.get('height')) || 360;
+    const frameBytes = width * height * 4;
+    const sink = app.sink('frames');
+    const status = document.getElementById('status');
+
+    let frame = 0, dropped = 0, busy = false;
+    let renderMs = 0, rendered = 0, lastReport = performance.now(), framesThisSecond = 0;
+
+    // Animated RGBA gradient written into the slot (little-endian: 0xAABBGGRR per pixel).
+    function render(buffer, n) {
+        const pixels = new Uint32Array(buffer, 0, width * height);
+        for (let y = 0; y < height; y++) {
+            const g = (y + n) & 255, row = y * width;
+            for (let x = 0; x < width; x++) {
+                const r = (x + n * 2) & 255, b = (((x + y) >> 1) - n * 3) & 255;
+                pixels[row + x] = 0xff000000 | (b << 16) | (g << 8) | r;
+            }
+        }
+    }
+
+    async function produce() {
+        busy = true;
+        const slot = await sink.acquire();
+        const draw = mode !== 'transport';
+        if (draw) {
+            const start = performance.now();
+            render(slot.buffer, frame);
+            renderMs += performance.now() - start;
+            rendered++;
+        }
+        sink.publish(slot, frameBytes, { width, height, frame, dropped, draw });
+        frame++;
+        framesThisSecond++;
+        busy = false;
+        report();
+    }
+
+    function report() {
+        const now = performance.now();
+        if (now - lastReport < 1000) return;
+        const fps = (framesThisSecond * 1000) / (now - lastReport);
+        const ms = rendered ? renderMs / rendered : -1;
+        status.textContent = `${mode} · ${width}×${height} · ${fps.toFixed(1)} fps published · ` +
+            `render ${ms >= 0 ? ms.toFixed(2) + ' ms' : '—'} · ${dropped} dropped`;
+        app.emit('render-ms', ms);
+        framesThisSecond = 0;
+        renderMs = 0;
+        rendered = 0;
+        lastReport = now;
+    }
+
+    app.ready.then(async () => {
+        if (mode === 'timed') {
+            setInterval(() => {
+                if (busy) dropped++;  // the last frame still waits for a slot
+                else produce();
+            }, 16);
+        } else {
+            for (;;) await produce();  // as fast as slots come back
+        }
+    });
+</script>
+</body>
+</html>
